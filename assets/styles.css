@@ -1,0 +1,256 @@
+/* Custom CSS for Terraform Dashboard */
+
+/* Main container styling */
+.main .block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+    max-width: 1200px;
+}
+
+/* Header styling */
+.main-header {
+    background: linear-gradient(90deg, #1f77b4 0%, #17a2b8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-size: 2.5rem;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 2rem;
+    padding: 1rem 0;
+}
+
+/* Metric cards */
+.metric-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 1.5rem;
+    border-radius: 15px;
+    color: white;
+    text-align: center;
+    margin: 0.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease-in-out;
+}
+
+.metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Risk level specific colors */
+.risk-low {
+    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+}
+
+.risk-medium {
+    background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+}
+
+.risk-high {
+    background: linear-gradient(135deg, #F44336 0%, #D32F2F 100%);
+}
+
+/* Upload section */
+.upload-section {
+    border: 3px dashed #1f77b4;
+    border-radius: 15px;
+    padding: 2rem;
+    text-align: center;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    margin-bottom: 2rem;
+    transition: border-color 0.3s ease;
+}
+
+.upload-section:hover {
+    border-color: #17a2b8;
+    background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+}
+
+/* Streamlit metric styling */
+.metric-container {
+    background: white;
+    padding: 1rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border-left: 4px solid #1f77b4;
+}
+
+/* Chart containers */
+.plotly-graph-div {
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e9ecef;
+}
+
+/* Sidebar styling */
+.sidebar .sidebar-content {
+    background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+/* Table styling */
+.dataframe {
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Button styling */
+.stButton > button {
+    background: linear-gradient(135deg, #1f77b4 0%, #17a2b8 100%);
+    color: white;
+    border: none;
+    border-radius: 25px;
+    padding: 0.5rem 1.5rem;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.stButton > button:hover {
+    background: linear-gradient(135deg, #17a2b8 0%, #1f77b4 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Success/Warning/Error message styling */
+.stSuccess {
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    border-left: 4px solid #28a745;
+    border-radius: 5px;
+}
+
+.stWarning {
+    background: linear-gradient(135deg, #fff3cd 0%, #fce4ba 100%);
+    border-left: 4px solid #ffc107;
+    border-radius: 5px;
+}
+
+.stError {
+    background: linear-gradient(135deg, #f8d7da 0%, #f1b0b7 100%);
+    border-left: 4px solid #dc3545;
+    border-radius: 5px;
+}
+
+/* Loading spinner customization */
+.stSpinner {
+    color: #1f77b4;
+}
+
+/* File uploader styling */
+.uploadedFile {
+    border-radius: 10px;
+    border: 2px solid #1f77b4;
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+}
+
+/* Section headers */
+h2 {
+    color: #1f77b4;
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 0.5rem;
+    margin-top: 2rem;
+}
+
+h3 {
+    color: #495057;
+    margin-top: 1.5rem;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .main-header {
+        font-size: 2rem;
+    }
+
+    .metric-card {
+        margin: 0.25rem;
+        padding: 1rem;
+    }
+
+    .upload-section {
+        padding: 1rem;
+    }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #1f77b4;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #17a2b8;
+}
+
+/* Animation for loading states */
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+.loading {
+    animation: pulse 2s infinite;
+}
+
+/* Tooltip styling */
+.tooltip {
+    position: relative;
+    display: inline-block;
+    border-bottom: 1px dotted #1f77b4;
+    cursor: help;
+}
+
+.tooltip .tooltiptext {
+    visibility: hidden;
+    width: 200px;
+    background-color: #555;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -100px;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Print styles */
+@media print {
+    .sidebar {
+        display: none;
+    }
+
+    .main-header {
+        color: #1f77b4 !important;
+        -webkit-text-fill-color: #1f77b4 !important;
+    }
+
+    .metric-card {
+        background: white !important;
+        color: black !important;
+        border: 1px solid #ccc;
+    }
+}
