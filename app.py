@@ -60,6 +60,14 @@ st.markdown("""
         background-color: #f8f9fa;
         margin-bottom: 2rem;
     }
+
+    .debug-info {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 5px;
+        border-left: 4px solid #17a2b8;
+        margin: 1rem 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -71,6 +79,9 @@ def main():
     # Sidebar
     st.sidebar.title("📊 Dashboard Controls")
     st.sidebar.markdown("---")
+
+    # Debug toggle
+    show_debug = st.sidebar.checkbox("🔍 Show Debug Information", value=False)
 
     # File upload section
     st.markdown('<div class="upload-section">', unsafe_allow_html=True)
@@ -97,6 +108,9 @@ def main():
                 resource_changes = parser.get_resource_changes()
                 resource_types = parser.get_resource_types()
 
+                # Get debug info
+                debug_info = parser.get_debug_info()
+
                 # Risk assessment
                 risk_assessor = RiskAssessment()
                 risk_summary = risk_assessor.assess_plan_risk(resource_changes)
@@ -106,6 +120,58 @@ def main():
 
             # Display success message
             st.success("✅ Plan processed successfully!")
+
+            # Debug Information Section
+            if show_debug:
+                st.markdown("## 🔍 Debug Information")
+                st.markdown('<div class="debug-info">', unsafe_allow_html=True)
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.markdown("**📊 Parsing Details:**")
+                    st.write(f"Total resource_changes in JSON: {debug_info['total_resource_changes']}")
+                    st.write(f"Filtered resource_changes: {len(resource_changes)}")
+                    st.write(f"Summary total: {summary['total']}")
+
+                    # Fixed manual calculation logic
+                    manual_create = manual_update = manual_delete = manual_total = 0
+                    for change in parser.resource_changes:
+                        actions = change.get('change', {}).get('actions', [])
+                        if not actions or actions == ['no-op']:
+                            continue
+
+                        manual_total += 1  # Count each resource only once
+
+                        if actions == ['create']:
+                            manual_create += 1
+                        elif actions == ['delete']:
+                            manual_delete += 1
+                        elif actions == ['update']:
+                            manual_update += 1
+                        elif set(actions) == {'create', 'delete'}:
+                            # Replacement: count as both create and delete for action totals
+                            manual_create += 1
+                            manual_delete += 1
+
+                    st.write(
+                        f"Manual calculation: C:{manual_create} U:{manual_update} D:{manual_delete} T:{manual_total}")
+                    st.write(
+                        f"Actions total: {manual_create + manual_update + manual_delete} (includes replacement double-count)")
+
+                with col2:
+                    st.markdown("**🎯 Action Patterns:**")
+                    for pattern, count in debug_info['action_patterns'].items():
+                        st.write(f"`{pattern}`: {count} resources")
+
+                st.markdown("**📁 Plan Structure:**")
+                st.write(f"Has planned_values: {debug_info['has_planned_values']}")
+                st.write(f"Has configuration: {debug_info['has_configuration']}")
+                st.write(f"Has prior_state: {debug_info['has_prior_state']}")
+                st.write(f"Plan keys: {', '.join(debug_info['plan_keys'])}")
+
+                st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown("---")
 
             # Summary Cards Section
             st.markdown("## 📊 Change Summary")
@@ -148,7 +214,8 @@ def main():
 
             with col1:
                 st.markdown("### 📈 Plan Details")
-                st.write(f"**Total Resources:** {summary['total']}")
+                st.write(f"**Total Changes:** {summary['total']}")
+                st.write(f"**Total Resources in Plan:** {debug_info['total_resource_changes']}")
                 st.write(f"**Terraform Version:** {plan_data.get('terraform_version', 'Unknown')}")
                 st.write(f"**Plan Format:** {plan_data.get('format_version', 'Unknown')}")
 
@@ -157,129 +224,161 @@ def main():
                 st.write(f"**Risk Level:** {risk_summary['level']}")
                 st.write(f"**Risk Score:** {risk_summary['score']}/100")
                 st.write(f"**High Risk Resources:** {risk_summary['high_risk_count']}")
+                st.write(f"**Estimated Time:** {risk_summary.get('estimated_time', 'Unknown')}")
 
             with col3:
                 st.markdown("### 📋 Resource Types")
                 st.write(f"**Unique Types:** {len(resource_types)}")
-                top_types = dict(sorted(resource_types.items(), key=lambda x: x[1], reverse=True)[:3])
-                for rtype, count in top_types.items():
-                    st.write(f"**{rtype}:** {count}")
-
-            # Visualizations Section
-            st.markdown("---")
-            st.markdown("## 📈 Visualizations")
-
-            # Two columns for charts
-            col1, col2 = st.columns(2)
-
-            with col1:
-                st.markdown("### 🏷️ Resource Types Distribution")
                 if resource_types:
-                    fig_pie = chart_gen.create_resource_type_pie(resource_types)
-                    st.plotly_chart(fig_pie, use_container_width=True)
+                    top_types = dict(sorted(resource_types.items(), key=lambda x: x[1], reverse=True)[:3])
+                    for rtype, count in top_types.items():
+                        st.write(f"**{rtype}:** {count}")
                 else:
-                    st.info("No resource type data available")
+                    st.write("No resource types found")
 
-            with col2:
-                st.markdown("### 🔄 Change Actions")
-                fig_bar = chart_gen.create_change_actions_bar(summary)
-                st.plotly_chart(fig_bar, use_container_width=True)
+            # Only show visualizations if we have data
+            if summary['total'] > 0:
+                # Visualizations Section
+                st.markdown("---")
+                st.markdown("## 📈 Visualizations")
 
-            # Risk Assessment Chart
-            st.markdown("### ⚠️ Risk Assessment by Resource Type")
-            if resource_changes:
-                risk_by_type = risk_assessor.get_risk_by_resource_type(resource_changes)
-                fig_risk = chart_gen.create_risk_heatmap(risk_by_type)
-                st.plotly_chart(fig_risk, use_container_width=True)
+                # Two columns for charts
+                col1, col2 = st.columns(2)
 
-            # Resource Details Table
-            st.markdown("---")
-            st.markdown("## 📋 Resource Change Details")
+                with col1:
+                    st.markdown("### 🏷️ Resource Types Distribution")
+                    if resource_types:
+                        fig_pie = chart_gen.create_resource_type_pie(resource_types)
+                        st.plotly_chart(fig_pie, use_container_width=True)
+                    else:
+                        st.info("No resource type data available")
 
-            # Filters in sidebar
-            st.sidebar.markdown("### 🔍 Filters")
+                with col2:
+                    st.markdown("### 🔄 Change Actions")
+                    fig_bar = chart_gen.create_change_actions_bar(summary)
+                    st.plotly_chart(fig_bar, use_container_width=True)
 
-            # Action filter
-            action_filter = st.sidebar.multiselect(
-                "Filter by Action",
-                options=['create', 'update', 'delete'],
-                default=['create', 'update', 'delete']
-            )
+                # Risk Assessment Chart
+                st.markdown("### ⚠️ Risk Assessment by Resource Type")
+                if resource_changes:
+                    risk_by_type = risk_assessor.get_risk_by_resource_type(resource_changes)
+                    if risk_by_type:
+                        fig_risk = chart_gen.create_risk_heatmap(risk_by_type)
+                        st.plotly_chart(fig_risk, use_container_width=True)
+                    else:
+                        st.info("No risk data available")
 
-            # Risk filter
-            risk_filter = st.sidebar.multiselect(
-                "Filter by Risk Level",
-                options=['Low', 'Medium', 'High'],
-                default=['Low', 'Medium', 'High']
-            )
+                # Resource Details Table
+                st.markdown("---")
+                st.markdown("## 📋 Resource Change Details")
 
-            # Create detailed dataframe
-            if resource_changes:
-                detailed_df = parser.create_detailed_dataframe(resource_changes)
+                # Filters in sidebar
+                st.sidebar.markdown("### 🔍 Filters")
 
-                # Add risk assessment to dataframe
-                detailed_df['risk_level'] = detailed_df.apply(
-                    lambda row: risk_assessor.assess_resource_risk({
-                        'type': row['resource_type'],
-                        'change': {'actions': [row['action']]}
-                    })['level'], axis=1
+                # Action filter
+                action_filter = st.sidebar.multiselect(
+                    "Filter by Action",
+                    options=['create', 'update', 'delete', 'replace'],
+                    default=['create', 'update', 'delete', 'replace']
                 )
 
-                # Apply filters
-                filtered_df = detailed_df[
-                    (detailed_df['action'].isin(action_filter)) &
-                    (detailed_df['risk_level'].isin(risk_filter))
-                    ]
+                # Risk filter
+                risk_filter = st.sidebar.multiselect(
+                    "Filter by Risk Level",
+                    options=['Low', 'Medium', 'High'],
+                    default=['Low', 'Medium', 'High']
+                )
 
-                # Display table
-                st.dataframe(
-                    filtered_df,
-                    use_container_width=True,
-                    column_config={
-                        "action": st.column_config.TextColumn(
-                            "Action",
-                            width="small"
-                        ),
-                        "resource_type": st.column_config.TextColumn(
-                            "Resource Type",
-                            width="medium"
-                        ),
-                        "resource_name": st.column_config.TextColumn(
-                            "Resource Name",
-                            width="large"
-                        ),
-                        "risk_level": st.column_config.TextColumn(
-                            "Risk Level",
-                            width="small"
+                # Create detailed dataframe
+                if resource_changes:
+                    detailed_df = parser.create_detailed_dataframe(resource_changes)
+
+                    # Add risk assessment to dataframe
+                    detailed_df['risk_level'] = detailed_df.apply(
+                        lambda row: risk_assessor.assess_resource_risk({
+                            'type': row['resource_type'],
+                            'change': {'actions': [row['action']]}
+                        })['level'], axis=1
+                    )
+
+                    # Apply filters
+                    filtered_df = detailed_df[
+                        (detailed_df['action'].isin(action_filter)) &
+                        (detailed_df['risk_level'].isin(risk_filter))
+                        ]
+
+                    # Display table
+                    if not filtered_df.empty:
+                        st.dataframe(
+                            filtered_df,
+                            use_container_width=True,
+                            column_config={
+                                "action": st.column_config.TextColumn(
+                                    "Action",
+                                    width="small"
+                                ),
+                                "resource_type": st.column_config.TextColumn(
+                                    "Resource Type",
+                                    width="medium"
+                                ),
+                                "resource_name": st.column_config.TextColumn(
+                                    "Resource Name",
+                                    width="large"
+                                ),
+                                "risk_level": st.column_config.TextColumn(
+                                    "Risk Level",
+                                    width="small"
+                                )
+                            }
                         )
-                    }
-                )
 
-                # Download button for filtered data
-                csv = filtered_df.to_csv(index=False)
-                st.download_button(
-                    label="📥 Download Filtered Data as CSV",
-                    data=csv,
-                    file_name="terraform_plan_changes.csv",
-                    mime="text/csv"
-                )
+                        # Download button for filtered data
+                        csv = filtered_df.to_csv(index=False)
+                        st.download_button(
+                            label="📥 Download Filtered Data as CSV",
+                            data=csv,
+                            file_name="terraform_plan_changes.csv",
+                            mime="text/csv"
+                        )
+                    else:
+                        st.info("No resources match the current filters.")
+                else:
+                    st.info("No resource changes found in the plan.")
+
+            else:
+                st.info("🎉 No changes detected in this plan! All resources are up to date.")
 
             # Footer
             st.markdown("---")
             st.markdown("### 📚 Summary")
-            st.info(f"""
-            **Plan Summary:**
-            - Total changes: {summary['total']} resources
-            - Risk level: {risk_summary['level']} ({risk_summary['score']}/100)
-            - Estimated deployment time: {risk_summary.get('estimated_time', 'Unknown')}
-            - Recommended action: {'Proceed with caution' if risk_summary['level'] == 'High' else 'Safe to deploy'}
-            """)
+
+            if summary['total'] > 0:
+                recommendations = risk_assessor.generate_recommendations(resource_changes)
+
+                st.info(f"""
+                **Plan Summary:**
+                - Total changes: {summary['total']} resources
+                - Risk level: {risk_summary['level']} ({risk_summary['score']}/100)
+                - Estimated deployment time: {risk_summary.get('estimated_time', 'Unknown')}
+                - Recommended action: {'Proceed with caution' if risk_summary['level'] == 'High' else 'Safe to deploy'}
+                """)
+
+                if recommendations:
+                    st.markdown("**🎯 Recommendations:**")
+                    for rec in recommendations:
+                        st.write(f"- {rec}")
+            else:
+                st.success("✅ No changes required - your infrastructure is up to date!")
 
         except json.JSONDecodeError:
             st.error("❌ Invalid JSON file. Please upload a valid Terraform plan JSON file.")
         except Exception as e:
             st.error(f"❌ Error processing file: {str(e)}")
             st.info("Please ensure you're uploading a valid Terraform plan JSON file.")
+
+            # Show error details in debug mode
+            if show_debug:
+                st.exception(e)
 
     else:
         # Show instructions when no file is uploaded
@@ -300,6 +399,7 @@ def main():
         - **Interactive Charts**: Visualize resource distributions and change patterns
         - **Detailed Tables**: Filterable list of all resource changes
         - **Data Export**: Download filtered results as CSV
+        - **Debug Mode**: Toggle in sidebar to see parsing details
         """)
 
         # Sample data section
@@ -310,8 +410,19 @@ def main():
                 "format_version": "1.0",
                 "resource_changes": [
                     {
-                        "address": "aws_instance.web",
+                        "address": "aws_instance.web[0]",
                         "type": "aws_instance",
+                        "name": "web",
+                        "change": {
+                            "actions": ["create"],
+                            "before": None,
+                            "after": {"instance_type": "t3.micro"}
+                        }
+                    },
+                    {
+                        "address": "aws_instance.web[1]",
+                        "type": "aws_instance",
+                        "name": "web",
                         "change": {
                             "actions": ["create"],
                             "before": None,
@@ -321,10 +432,21 @@ def main():
                     {
                         "address": "aws_security_group.web",
                         "type": "aws_security_group",
+                        "name": "web",
                         "change": {
                             "actions": ["update"],
                             "before": {"ingress": []},
                             "after": {"ingress": [{"from_port": 80}]}
+                        }
+                    },
+                    {
+                        "address": "aws_s3_bucket.old_bucket",
+                        "type": "aws_s3_bucket",
+                        "name": "old_bucket",
+                        "change": {
+                            "actions": ["delete"],
+                            "before": {"bucket": "my-old-bucket"},
+                            "after": None
                         }
                     }
                 ]

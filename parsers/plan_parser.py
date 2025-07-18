@@ -25,14 +25,38 @@ class PlanParser:
         for change in self.resource_changes:
             actions = change.get('change', {}).get('actions', [])
 
-            if 'create' in actions:
+            # Skip no-op actions (unchanged resources)
+            if not actions or actions == ['no-op']:
+                continue
+
+            # Handle different action combinations
+            if actions == ['create']:
                 summary['create'] += 1
+            elif actions == ['delete']:
+                summary['delete'] += 1
+            elif actions == ['update']:
+                summary['update'] += 1
+            elif set(actions) == {'create', 'delete'}:
+                # This is a replacement: destroy old, create new
+                # Count as both create and delete for action totals
+                summary['create'] += 1
+                summary['delete'] += 1
             elif 'update' in actions:
                 summary['update'] += 1
+            elif 'create' in actions:
+                summary['create'] += 1
             elif 'delete' in actions:
                 summary['delete'] += 1
 
-            summary['total'] += 1
+        # Calculate total as actual changed resources (not sum of actions)
+        # Count replacements as single resources, not double
+        total_changed = 0
+        for change in self.resource_changes:
+            actions = change.get('change', {}).get('actions', [])
+            if actions and actions != ['no-op']:
+                total_changed += 1
+
+        summary['total'] = total_changed
 
         return summary
 
@@ -43,12 +67,22 @@ class PlanParser:
         for change in self.resource_changes:
             change_actions = change.get('change', {}).get('actions', [])
 
-            # Normalize the action to a single primary action
-            primary_action = 'create'
-            if 'delete' in change_actions:
+            # Skip no-op actions (unchanged resources)
+            if not change_actions or change_actions == ['no-op']:
+                continue
+
+            # Normalize the action to a single primary action for display
+            if set(change_actions) == {'create', 'delete'}:
+                # This is a replacement
+                primary_action = 'replace'
+            elif 'delete' in change_actions:
                 primary_action = 'delete'
             elif 'update' in change_actions:
                 primary_action = 'update'
+            elif 'create' in change_actions:
+                primary_action = 'create'
+            else:
+                primary_action = 'update'  # Default for unknown actions
 
             changes.append({
                 'address': change.get('address', ''),
@@ -68,8 +102,11 @@ class PlanParser:
         resource_types = Counter()
 
         for change in self.resource_changes:
-            resource_type = change.get('type', 'unknown')
-            resource_types[resource_type] += 1
+            actions = change.get('change', {}).get('actions', [])
+            # Only count resources that have actual changes (skip no-op)
+            if actions and actions != ['no-op']:
+                resource_type = change.get('type', 'unknown')
+                resource_types[resource_type] += 1
 
         return dict(resource_types)
 
@@ -232,3 +269,22 @@ class PlanParser:
                     validation['warnings'].append(f'Resource change {i} missing type field')
 
         return validation
+
+    def get_debug_info(self) -> Dict[str, Any]:
+        """Get debug information for troubleshooting"""
+        action_patterns = {}
+        total_resource_changes = len(self.resource_changes)
+
+        for change in self.resource_changes:
+            actions = change.get('change', {}).get('actions', [])
+            pattern = str(sorted(actions))
+            action_patterns[pattern] = action_patterns.get(pattern, 0) + 1
+
+        return {
+            'total_resource_changes': total_resource_changes,
+            'action_patterns': action_patterns,
+            'has_planned_values': 'planned_values' in self.plan_data,
+            'has_configuration': 'configuration' in self.plan_data,
+            'has_prior_state': 'prior_state' in self.plan_data,
+            'plan_keys': list(self.plan_data.keys())
+        }
