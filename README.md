@@ -14,16 +14,19 @@ A professional web dashboard for visualizing Terraform plan changes, analyzing r
 ## 🛠️ Installation & Setup
 
 ### Prerequisites
+
 - Python 3.8 or higher
 - Virtual environment (recommended)
 
 ### Step 3: Install Dependencies
+
 ```powershell
 # With virtual environment activated
 pip install -r requirements.txt
 ```
 
 ### Step 4: Create the Files
+
 Save each of the provided code files in their respective locations:
 
 ```
@@ -42,9 +45,13 @@ terraform-dashboard/
 ```
 
 ### Step 5: Run the Dashboard
+
 ```powershell
 # Make sure your virtual environment is activated
 .\venv\Scripts\activate
+
+# On Mac/Linux:
+source .venv/bin/activate
 
 # Run the Streamlit app
 streamlit run app.py
@@ -55,39 +62,46 @@ The dashboard will open in your browser at `http://localhost:8501`
 ## 📁 Usage
 
 ### 1. Upload Terraform Plan JSON
+
 - Click "Browse files" or drag & drop your plan JSON file
 - Supported format: `plan-{id}-structured-output.json`
 - File size: Up to 10MB supported
 
 ### 2. View Change Summary
+
 - **Create**: New resources being added
-- **Update**: Existing resources being modified  
+- **Update**: Existing resources being modified
 - **Delete**: Resources being removed
 - **Risk Level**: Overall deployment risk assessment
 
 ### 3. Analyze Visualizations
+
 - **Resource Types Pie Chart**: Distribution of resource types
 - **Change Actions Bar Chart**: Breakdown by operation type
 - **Risk Heatmap**: Risk levels by resource type
 
 ### 4. Filter and Export
+
 - Use sidebar filters to focus on specific changes
 - Export filtered data as CSV for further analysis
 
 ## 🎯 Risk Assessment Logic
 
 ### Risk Levels
+
 - **🟢 Low (0-3)**: Safe operations, minimal impact
 - **🟡 Medium (4-6)**: Moderate risk, requires attention
 - **🔴 High (7-10)**: High impact, proceed with caution
 
 ### High-Risk Resource Types
+
 - **Security**: `aws_security_group`, `aws_iam_*`
 - **Networking**: `aws_vpc`, `aws_subnet`, `aws_route_table`
 - **Databases**: `aws_rds_*`, `aws_dynamodb_table`
 - **Storage**: `aws_s3_bucket` (with policies)
 
 ### Action Risk Multipliers
+
 - **Create**: 1.0x (lowest risk)
 - **Update**: 1.5x (medium risk)
 - **Delete**: 2.5x (highest risk)
@@ -105,27 +119,34 @@ If you want to test the dashboard without a real Terraform plan:
 ### Common Issues
 
 **Streamlit command not found:**
+
 ```powershell
 # Try running with Python module
 python -m streamlit run app.py
 ```
 
 **Import errors:**
+
 ```powershell
 # Make sure virtual environment is activated
 .\venv\Scripts\activate
+
+# On Mac/Linux:
+source venv/bin/activate
 
 # Reinstall dependencies
 pip install -r requirements.txt
 ```
 
 **Large file upload issues:**
+
 ```powershell
 # Increase Streamlit file upload limit
 streamlit run app.py --server.maxUploadSize=50
 ```
 
 **Port already in use:**
+
 ```powershell
 # Use different port
 streamlit run app.py --server.port=8502
@@ -134,6 +155,7 @@ streamlit run app.py --server.port=8502
 ## 🚀 Next Steps (Phase 2)
 
 Future enhancements planned:
+
 - **🕸️ Dependency Graph**: Interactive network of resource relationships
 - **📈 Sankey Diagrams**: Resource state flow visualization
 - **📊 Multi-plan Comparison**: Compare different plan versions
@@ -143,31 +165,41 @@ Future enhancements planned:
 ## 📝 File Structure Details
 
 ### `app.py`
+
 Main Streamlit application with:
+
 - File upload interface
 - Dashboard layout and components
 - Integration with all modules
 
 ### `parsers/plan_parser.py`
+
 JSON parsing functionality:
+
 - Extract resource changes
 - Calculate summary statistics
 - Validate plan structure
 
 ### `visualizers/charts.py`
+
 Plotly chart generation:
+
 - Pie charts for resource distribution
 - Bar charts for action breakdown
 - Heatmaps for risk visualization
 
 ### `utils/risk_assessment.py`
+
 Risk analysis engine:
+
 - Resource type risk scoring
 - Action risk multipliers
 - Overall plan risk calculation
 
 ### `assets/styles.css`
+
 Custom styling:
+
 - Professional color scheme
 - Responsive design
 - Interactive hover effects
@@ -183,13 +215,18 @@ To extend the dashboard:
 
 ## 📄 License
 
-This project is provided as-is for internal use. Modify and distribute as needed for your organization.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🆘 Support
 
 For issues or questions:
+
 1. Check the troubleshooting section above
 2. Verify all files are in correct locations
 3. Ensure virtual environment is properly activated
 4. Test with sample data first
 
+## 👏 Acknowledgments
+
+- Created with assistance from [Claude](https://anthropic.com/claude) by Anthropic
+- Inspired by the need for cleaner Terraform planning workflows
