@@ -11,6 +11,8 @@ A professional web dashboard for visualizing Terraform plan changes, analyzing r
 - **📥 Data Export**: Download filtered results as CSV
 - **📱 Responsive Design**: Works on desktop and mobile devices
 
+![Dashboard Beispiel](assets/dashboard_example.png)
+
 ## 🛠️ Installation & Setup
 
 ### Prerequisites
