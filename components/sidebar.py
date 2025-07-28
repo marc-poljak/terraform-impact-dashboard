@@ -235,15 +235,122 @@ class SidebarComponent:
             except:
                 pass
         
-        # Filter combination logic
-        st.sidebar.markdown("#### 🔗 Filter Logic")
+        # Advanced filter combination logic
+        st.sidebar.markdown("#### 🔗 Advanced Filter Logic")
+        
+        # Basic AND/OR logic
         filter_logic = st.sidebar.radio(
-            "Combine filters using:",
+            "Basic Logic:",
             options=["AND", "OR"],
             index=0,
             help="AND: Show resources that match ALL selected filters\nOR: Show resources that match ANY selected filter",
             horizontal=True
         )
+        
+        # Advanced filter expression builder
+        with st.sidebar.expander("🔧 Advanced Filter Builder", expanded=False):
+            st.markdown("**Build Complex Filter Expressions**")
+            
+            # Enable advanced mode
+            use_advanced_filters = st.checkbox(
+                "Enable Advanced Filter Expressions",
+                help="Create complex filter combinations using custom expressions"
+            )
+            
+            if use_advanced_filters:
+                # Filter expression input
+                filter_expression = st.text_area(
+                    "Filter Expression",
+                    value=self.session_manager.get_session_value('filter_expression', ''),
+                    placeholder="(action='create' OR action='update') AND risk='High'",
+                    help="""
+                    **Expression Syntax:**
+                    • Use field names: action, risk, provider, type, name
+                    • Operators: =, !=, IN, NOT IN
+                    • Logic: AND, OR, NOT, ( )
+                    • Values: 'create', 'High', etc.
+                    
+                    **Examples:**
+                    • action='create' AND risk='High'
+                    • (action='delete' OR action='replace') AND provider='aws'
+                    • risk IN ('Medium', 'High') AND type LIKE 'aws_instance'
+                    """,
+                    height=100
+                )
+                
+                # Save expression to session state
+                self.session_manager.set_session_value('filter_expression', filter_expression)
+                
+                # Validate expression
+                validation_result = self._validate_filter_expression(filter_expression)
+                
+                if filter_expression.strip():
+                    if validation_result['valid']:
+                        st.success("✅ Expression is valid")
+                        
+                        # Show parsed expression preview
+                        with st.expander("📋 Expression Preview", expanded=False):
+                            st.code(validation_result['parsed'], language='text')
+                    else:
+                        st.error(f"❌ Invalid expression: {validation_result['error']}")
+                        
+                        # Show syntax help
+                        with st.expander("❓ Syntax Help", expanded=True):
+                            st.markdown("""
+                            **Common Issues:**
+                            • Use single quotes for values: 'create' not create
+                            • Check parentheses balance: ( )
+                            • Use correct field names: action, risk, provider
+                            • Separate conditions with AND/OR
+                            
+                            **Valid Field Names:**
+                            • action: 'create', 'update', 'delete', 'replace'
+                            • risk: 'Low', 'Medium', 'High'
+                            • provider: 'aws', 'azure', 'gcp'
+                            • type: resource type (e.g., 'aws_instance')
+                            • name: resource name
+                            """)
+                
+                # Expression templates
+                st.markdown("**Quick Templates:**")
+                template_col1, template_col2 = st.columns(2)
+                
+                with template_col1:
+                    if st.button("High Risk Creates", help="New high-risk resources"):
+                        template = "action='create' AND risk='High'"
+                        self.session_manager.set_session_value('filter_expression', template)
+                        st.rerun()
+                    
+                    if st.button("AWS Deletions", help="AWS resources being deleted"):
+                        template = "action='delete' AND provider='aws'"
+                        self.session_manager.set_session_value('filter_expression', template)
+                        st.rerun()
+                
+                with template_col2:
+                    if st.button("Critical Changes", help="High-risk updates or replacements"):
+                        template = "(action='update' OR action='replace') AND risk='High'"
+                        self.session_manager.set_session_value('filter_expression', template)
+                        st.rerun()
+                    
+                    if st.button("Multi-Cloud Risk", help="Medium/High risk across providers"):
+                        template = "risk IN ('Medium', 'High') AND provider IN ('aws', 'azure', 'gcp')"
+                        self.session_manager.set_session_value('filter_expression', template)
+                        st.rerun()
+                
+                # Clear expression
+                if st.button("🗑️ Clear Expression", help="Clear the filter expression"):
+                    self.session_manager.set_session_value('filter_expression', '')
+                    st.rerun()
+            
+            else:
+                # Clear advanced expression when disabled
+                self.session_manager.set_session_value('filter_expression', '')
+        
+        # Store advanced filter settings
+        advanced_filter_settings = {
+            'use_advanced_filters': use_advanced_filters if 'use_advanced_filters' in locals() else False,
+            'filter_expression': self.session_manager.get_session_value('filter_expression', '') if 'use_advanced_filters' in locals() and use_advanced_filters else ''
+        }
         
         # Filter presets
         st.sidebar.markdown("#### 📋 Filter Presets")
@@ -341,7 +448,8 @@ class SidebarComponent:
             'provider_filter': provider_filter,
             'filter_logic': filter_logic,
             'selected_preset': selected_preset,
-            'save_name': save_name if 'save_name' in locals() else ""
+            'save_name': save_name if 'save_name' in locals() else "",
+            'advanced_filter_settings': advanced_filter_settings
         }
     
     def _get_preset_filters(self, preset_name: str, enhanced_risk_result=None, enable_multi_cloud=True) -> dict:
@@ -397,3 +505,77 @@ class SidebarComponent:
                 pass
         
         return preset_config
+    
+    def _validate_filter_expression(self, expression: str) -> dict:
+        """
+        Validate a filter expression for syntax and field names.
+        
+        Args:
+            expression: Filter expression string to validate
+            
+        Returns:
+            Dictionary with validation result and error message if invalid
+        """
+        if not expression.strip():
+            return {'valid': True, 'parsed': '', 'error': ''}
+        
+        try:
+            # Basic validation - check for balanced parentheses
+            if expression.count('(') != expression.count(')'):
+                return {'valid': False, 'error': 'Unbalanced parentheses', 'parsed': ''}
+            
+            # Check for valid field names
+            valid_fields = ['action', 'risk', 'provider', 'type', 'name']
+            valid_operators = ['=', '!=', 'IN', 'NOT IN', 'LIKE', 'NOT LIKE']
+            valid_logic = ['AND', 'OR', 'NOT']
+            
+            # Simple parsing - this is a basic implementation
+            # In a production system, you'd want a proper expression parser
+            expression_upper = expression.upper()
+            
+            # Check for valid operators
+            has_valid_operator = any(op in expression_upper for op in valid_operators)
+            if not has_valid_operator and expression.strip():
+                return {'valid': False, 'error': 'No valid operators found (=, !=, IN, LIKE)', 'parsed': ''}
+            
+            # Check for valid field names (basic check)
+            has_valid_field = any(field in expression.lower() for field in valid_fields)
+            if not has_valid_field and expression.strip():
+                return {'valid': False, 'error': f'No valid field names found. Use: {", ".join(valid_fields)}', 'parsed': ''}
+            
+            # Basic syntax validation passed
+            parsed_expression = self._parse_filter_expression(expression)
+            
+            return {
+                'valid': True,
+                'parsed': parsed_expression,
+                'error': ''
+            }
+            
+        except Exception as e:
+            return {
+                'valid': False,
+                'error': f'Syntax error: {str(e)}',
+                'parsed': ''
+            }
+    
+    def _parse_filter_expression(self, expression: str) -> str:
+        """
+        Parse and format a filter expression for display.
+        
+        Args:
+            expression: Filter expression to parse
+            
+        Returns:
+            Formatted expression string
+        """
+        if not expression.strip():
+            return ''
+        
+        # Simple formatting - add line breaks for readability
+        formatted = expression.replace(' AND ', '\n  AND ')
+        formatted = formatted.replace(' OR ', '\n  OR ')
+        formatted = formatted.replace('(', '(\n    ')
+        formatted = formatted.replace(')', '\n  )')
+        
+        return formatted.strip()

@@ -46,12 +46,25 @@ class SessionStateManager:
         if 'search_results_count' not in st.session_state:
             st.session_state.search_results_count = 0
             
+        if 'search_result_indices' not in st.session_state:
+            st.session_state.search_result_indices = []
+            
+        if 'current_search_result_index' not in st.session_state:
+            st.session_state.current_search_result_index = 0
+            
         # Filter logic and presets
         if 'filter_logic' not in st.session_state:
             st.session_state.filter_logic = 'AND'
             
         if 'selected_preset' not in st.session_state:
             st.session_state.selected_preset = 'Custom'
+            
+        # Advanced filter settings
+        if 'use_advanced_filters' not in st.session_state:
+            st.session_state.use_advanced_filters = False
+            
+        if 'filter_expression' not in st.session_state:
+            st.session_state.filter_expression = ''
             
         # Saved filter configurations
         if 'saved_filter_configs' not in st.session_state:
@@ -423,6 +436,8 @@ class SessionStateManager:
         """
         st.session_state.search_query = ""
         st.session_state.search_results_count = 0
+        st.session_state.search_result_indices = []
+        st.session_state.current_search_result_index = 0
     
     def is_search_active(self) -> bool:
         """
@@ -432,6 +447,91 @@ class SessionStateManager:
             True if search query is not empty
         """
         return bool(st.session_state.get('search_query', "").strip())
+    
+    def get_search_result_indices(self) -> List[int]:
+        """
+        Get list of search result indices from session state.
+        
+        Returns:
+            List of dataframe indices that match the search
+        """
+        return st.session_state.get('search_result_indices', [])
+    
+    def set_search_result_indices(self, indices: List[int]) -> None:
+        """
+        Set search result indices in session state.
+        
+        Args:
+            indices: List of dataframe indices that match the search
+        """
+        st.session_state.search_result_indices = indices
+        # Reset current index when new search results are set
+        st.session_state.current_search_result_index = 0
+    
+    def get_current_search_result_index(self) -> int:
+        """
+        Get current search result index for navigation.
+        
+        Returns:
+            Current search result index (0-based)
+        """
+        return st.session_state.get('current_search_result_index', 0)
+    
+    def set_current_search_result_index(self, index: int) -> None:
+        """
+        Set current search result index for navigation.
+        
+        Args:
+            index: Search result index to navigate to (0-based)
+        """
+        indices = self.get_search_result_indices()
+        if indices and 0 <= index < len(indices):
+            st.session_state.current_search_result_index = index
+    
+    def navigate_search_results(self, direction: str) -> bool:
+        """
+        Navigate to next or previous search result.
+        
+        Args:
+            direction: 'next' or 'previous'
+            
+        Returns:
+            True if navigation was successful, False if at boundary
+        """
+        indices = self.get_search_result_indices()
+        if not indices:
+            return False
+        
+        current_index = self.get_current_search_result_index()
+        
+        if direction == 'next':
+            if current_index < len(indices) - 1:
+                self.set_current_search_result_index(current_index + 1)
+                return True
+        elif direction == 'previous':
+            if current_index > 0:
+                self.set_current_search_result_index(current_index - 1)
+                return True
+        
+        return False
+    
+    def get_current_search_result_info(self) -> Dict[str, Any]:
+        """
+        Get information about current search result position.
+        
+        Returns:
+            Dictionary with current position and total count
+        """
+        indices = self.get_search_result_indices()
+        current_index = self.get_current_search_result_index()
+        
+        return {
+            'current_position': current_index + 1 if indices else 0,
+            'total_results': len(indices),
+            'has_results': len(indices) > 0,
+            'can_go_previous': current_index > 0,
+            'can_go_next': current_index < len(indices) - 1 if indices else False
+        }
     
     # Filter logic and preset methods
     
@@ -549,7 +649,8 @@ class SessionStateManager:
         current_config = {
             **self.get_filter_state(),
             'filter_logic': self.get_filter_logic(),
-            'search_query': self.get_search_query()
+            'search_query': self.get_search_query(),
+            **self.get_advanced_filter_settings()
         }
         
         # Initialize saved configurations if not exists
@@ -592,10 +693,49 @@ class SessionStateManager:
         if 'search_query' in config:
             self.set_search_query(config['search_query'])
         
+        # Restore advanced filter settings
+        advanced_settings = {
+            'use_advanced_filters': config.get('use_advanced_filters', False),
+            'filter_expression': config.get('filter_expression', '')
+        }
+        self.set_advanced_filter_settings(advanced_settings)
+        
         # Set preset to custom since we're loading a saved config
         self.set_selected_preset('Custom')
         
         return True
+    
+    def get_advanced_filter_settings(self) -> Dict[str, Any]:
+        """
+        Get advanced filter settings from session state.
+        
+        Returns:
+            Dictionary containing advanced filter settings
+        """
+        return {
+            'use_advanced_filters': st.session_state.get('use_advanced_filters', False),
+            'filter_expression': st.session_state.get('filter_expression', '')
+        }
+    
+    def set_advanced_filter_settings(self, settings: Dict[str, Any]) -> None:
+        """
+        Set advanced filter settings in session state.
+        
+        Args:
+            settings: Dictionary containing advanced filter settings
+        """
+        if 'use_advanced_filters' in settings:
+            st.session_state.use_advanced_filters = settings['use_advanced_filters']
+        
+        if 'filter_expression' in settings:
+            st.session_state.filter_expression = settings['filter_expression']
+    
+    def clear_advanced_filters(self) -> None:
+        """
+        Clear advanced filter settings.
+        """
+        st.session_state.use_advanced_filters = False
+        st.session_state.filter_expression = ''
     
     def get_filter_configuration_summary(self) -> Dict[str, Any]:
         """
@@ -613,7 +753,8 @@ class SessionStateManager:
             'search_active': self.is_search_active(),
             'search_query': self.get_search_query(),
             'search_results_count': self.get_search_results_count(),
-            'saved_configs_count': len(self.get_saved_filter_configurations())
+            'saved_configs_count': len(self.get_saved_filter_configurations()),
+            **self.get_advanced_filter_settings()
         }   
  
     # Report generation methods

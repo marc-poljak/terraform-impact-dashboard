@@ -195,7 +195,7 @@ class DataTableComponent:
             - Case-insensitive matching
             - Partial string matching
             - Real-time filtering as you type
-            - Search result highlighting
+            - Search result highlighting and navigation
             
             **Search examples:**
             - `aws_instance` - Find all EC2 instances
@@ -217,9 +217,10 @@ class DataTableComponent:
             """
         })
         
-        # Search input with clear button
-        col1, col2 = st.columns([4, 1])
-        with col1:
+        # Search input with navigation controls
+        search_col1, search_col2, nav_col1, nav_col2, clear_col = st.columns([3, 1, 0.5, 0.5, 0.5])
+        
+        with search_col1:
             search_query = st.text_input(
                 "Search by resource name, type, or address",
                 value=self.session_manager.get_search_query(),
@@ -229,7 +230,7 @@ class DataTableComponent:
                 • Type any part of resource name, type, or address
                 • Search is case-insensitive and supports partial matches
                 • Results update automatically as you type
-                • Use filters in sidebar for more precise control
+                • Use navigation buttons to jump between results
                 
                 **Examples:**
                 • `aws_instance` → Find all EC2 instances
@@ -239,14 +240,39 @@ class DataTableComponent:
                 key="resource_search_input"
             )
         
-        with col2:
-            if st.button("Clear", help="Clear search query and show all resources"):
-                self.session_manager.clear_search()
-                st.rerun()
-        
         # Update search query in session state
         if search_query != self.session_manager.get_search_query():
             self.session_manager.set_search_query(search_query)
+        
+        # Search result navigation controls
+        search_info = self.session_manager.get_current_search_result_info()
+        
+        with search_col2:
+            if search_info['has_results']:
+                st.markdown(f"**{search_info['current_position']}/{search_info['total_results']}**")
+            else:
+                st.markdown("")
+        
+        with nav_col1:
+            if st.button("◀", 
+                        disabled=not search_info['can_go_previous'],
+                        help="Previous search result",
+                        key="search_prev"):
+                self.session_manager.navigate_search_results('previous')
+                st.rerun()
+        
+        with nav_col2:
+            if st.button("▶", 
+                        disabled=not search_info['can_go_next'],
+                        help="Next search result",
+                        key="search_next"):
+                self.session_manager.navigate_search_results('next')
+                st.rerun()
+        
+        with clear_col:
+            if st.button("Clear", help="Clear search query and show all resources"):
+                self.session_manager.clear_search()
+                st.rerun()
         
         # Filters in sidebar
         st.sidebar.markdown("### 🔍 Filters")
@@ -284,34 +310,23 @@ class DataTableComponent:
             except Exception:
                 pass
         
-        # Get filter logic from sidebar (default to AND if not available)
+        # Get filter logic and advanced settings from session state
         filter_logic = st.session_state.get('filter_logic', 'AND')
+        use_advanced_filters = st.session_state.get('use_advanced_filters', False)
+        filter_expression = st.session_state.get('filter_expression', '')
         
         # Apply filters based on logic
-        if filter_logic == 'AND':
-            # AND logic: resource must match ALL selected filters
-            filtered_df = detailed_df[
-                (detailed_df['action'].isin(action_filter)) &
-                (detailed_df['risk_level'].isin(risk_filter))
-            ]
-            
-            # Apply provider filter if enabled
-            if provider_filter is not None and 'provider' in detailed_df.columns:
-                filtered_df = filtered_df[filtered_df['provider'].isin(provider_filter)]
+        if use_advanced_filters and filter_expression.strip():
+            # Use advanced filter expression
+            try:
+                filtered_df = self._apply_advanced_filter_expression(detailed_df, filter_expression)
+            except Exception as e:
+                # Fall back to basic filtering if expression fails
+                st.warning(f"⚠️ Advanced filter expression failed: {e}. Using basic filters.")
+                filtered_df = self._apply_basic_filters(detailed_df, action_filter, risk_filter, provider_filter, filter_logic)
         else:
-            # OR logic: resource must match ANY selected filter
-            action_mask = detailed_df['action'].isin(action_filter)
-            risk_mask = detailed_df['risk_level'].isin(risk_filter)
-            
-            # Start with action OR risk
-            combined_mask = action_mask | risk_mask
-            
-            # Add provider filter to OR logic if enabled
-            if provider_filter is not None and 'provider' in detailed_df.columns:
-                provider_mask = detailed_df['provider'].isin(provider_filter)
-                combined_mask = combined_mask | provider_mask
-            
-            filtered_df = detailed_df[combined_mask]
+            # Use basic filter logic
+            filtered_df = self._apply_basic_filters(detailed_df, action_filter, risk_filter, provider_filter, filter_logic)
         
         # Apply search filter
         if search_query.strip():
@@ -400,39 +415,230 @@ class DataTableComponent:
             )
             search_mask = search_mask | provider_mask
         
+        # Store search result indices for navigation
+        search_result_indices = df[search_mask].index.tolist()
+        self.session_manager.set_search_result_indices(search_result_indices)
+        
         return df[search_mask]
     
-    def _highlight_search_results(self, df: pd.DataFrame, search_query: str) -> pd.DataFrame:
+    def _add_search_highlighting(self, df: pd.DataFrame, search_query: str) -> pd.DataFrame:
         """
-        Add highlighting to search results in the dataframe
+        Add search highlighting indicators to the dataframe
         
         Args:
-            df: Dataframe to highlight
-            search_query: Search query to highlight
+            df: Dataframe to add indicators to
+            search_query: Search query to match
             
         Returns:
-            Dataframe with highlighted search terms
+            Dataframe with search match indicators
         """
         if not search_query.strip():
             return df
         
         # Create a copy to avoid modifying original
         highlighted_df = df.copy()
-        query = search_query.strip()
+        query = search_query.strip().lower()
         
-        # Columns to highlight
-        highlight_columns = ['resource_name', 'resource_type', 'resource_address']
+        # Add search indicator column
+        highlighted_df['search_indicator'] = ''
         
-        for column in highlight_columns:
-            if column in highlighted_df.columns:
-                # Use HTML highlighting for search terms
-                highlighted_df[column] = highlighted_df[column].astype(str).str.replace(
-                    f'(?i)({re.escape(query)})',
-                    r'<mark style="background-color: yellow; padding: 1px 2px;">\1</mark>',
-                    regex=True
-                )
+        # Check each row for matches and add indicators
+        search_columns = ['resource_name', 'resource_type', 'resource_address']
+        if 'provider' in highlighted_df.columns:
+            search_columns.append('provider')
+        
+        for idx, row in highlighted_df.iterrows():
+            matches = []
+            for column in search_columns:
+                if column in highlighted_df.columns:
+                    cell_value = str(row[column]).lower()
+                    if query in cell_value:
+                        # Determine which part matched
+                        if column == 'resource_name':
+                            matches.append('NAME')
+                        elif column == 'resource_type':
+                            matches.append('TYPE')
+                        elif column == 'resource_address':
+                            matches.append('ADDR')
+                        elif column == 'provider':
+                            matches.append('PROV')
+            
+            if matches:
+                highlighted_df.loc[idx, 'search_indicator'] = '🔍 ' + '+'.join(matches)
         
         return highlighted_df
+    
+    def _apply_basic_filters(self, df: pd.DataFrame, action_filter: List[str], 
+                           risk_filter: List[str], provider_filter: Optional[List[str]], 
+                           filter_logic: str) -> pd.DataFrame:
+        """
+        Apply basic filter logic (AND/OR) to the dataframe.
+        
+        Args:
+            df: Dataframe to filter
+            action_filter: List of actions to include
+            risk_filter: List of risk levels to include
+            provider_filter: List of providers to include (optional)
+            filter_logic: 'AND' or 'OR' logic
+            
+        Returns:
+            Filtered dataframe
+        """
+        if filter_logic == 'AND':
+            # AND logic: resource must match ALL selected filters
+            filtered_df = df[
+                (df['action'].isin(action_filter)) &
+                (df['risk_level'].isin(risk_filter))
+            ]
+            
+            # Apply provider filter if enabled
+            if provider_filter is not None and 'provider' in df.columns:
+                filtered_df = filtered_df[filtered_df['provider'].isin(provider_filter)]
+        else:
+            # OR logic: resource must match ANY selected filter
+            action_mask = df['action'].isin(action_filter)
+            risk_mask = df['risk_level'].isin(risk_filter)
+            
+            # Start with action OR risk
+            combined_mask = action_mask | risk_mask
+            
+            # Add provider filter to OR logic if enabled
+            if provider_filter is not None and 'provider' in df.columns:
+                provider_mask = df['provider'].isin(provider_filter)
+                combined_mask = combined_mask | provider_mask
+            
+            filtered_df = df[combined_mask]
+        
+        return filtered_df
+    
+    def _apply_advanced_filter_expression(self, df: pd.DataFrame, expression: str) -> pd.DataFrame:
+        """
+        Apply advanced filter expression to the dataframe.
+        
+        Args:
+            df: Dataframe to filter
+            expression: Filter expression string
+            
+        Returns:
+            Filtered dataframe
+        """
+        if not expression.strip():
+            return df
+        
+        try:
+            # Parse and apply the filter expression
+            # This is a simplified implementation - in production you'd want a proper parser
+            filter_mask = self._evaluate_filter_expression(df, expression)
+            return df[filter_mask]
+            
+        except Exception as e:
+            # Log error and return original dataframe
+            st.error(f"Error applying advanced filter: {e}")
+            return df
+    
+    def _evaluate_filter_expression(self, df: pd.DataFrame, expression: str) -> pd.Series:
+        """
+        Evaluate a filter expression against the dataframe.
+        
+        Args:
+            df: Dataframe to evaluate against
+            expression: Filter expression string
+            
+        Returns:
+            Boolean series indicating which rows match the expression
+        """
+        # This is a simplified implementation
+        # In production, you'd want a proper expression parser/evaluator
+        
+        # Initialize result mask as all True
+        result_mask = pd.Series([True] * len(df), index=df.index)
+        
+        try:
+            # Simple expression evaluation
+            # Replace field names with actual column references
+            eval_expression = expression.lower()
+            
+            # Map field names to actual column names
+            field_mapping = {
+                'action': 'action',
+                'risk': 'risk_level',
+                'provider': 'provider',
+                'type': 'resource_type',
+                'name': 'resource_name'
+            }
+            
+            # This is a very basic implementation
+            # For production use, implement a proper expression parser
+            if 'action=' in eval_expression:
+                # Extract action value
+                import re
+                action_match = re.search(r"action\s*=\s*['\"]([^'\"]+)['\"]", eval_expression)
+                if action_match:
+                    action_value = action_match.group(1)
+                    action_mask = df['action'] == action_value
+                    
+                    if 'and' in eval_expression.lower():
+                        result_mask = result_mask & action_mask
+                    elif 'or' in eval_expression.lower():
+                        result_mask = result_mask | action_mask
+                    else:
+                        result_mask = action_mask
+            
+            if 'risk=' in eval_expression:
+                # Extract risk value
+                risk_match = re.search(r"risk\s*=\s*['\"]([^'\"]+)['\"]", eval_expression)
+                if risk_match:
+                    risk_value = risk_match.group(1).title()  # Convert to title case
+                    risk_mask = df['risk_level'] == risk_value
+                    
+                    if 'and' in eval_expression.lower():
+                        result_mask = result_mask & risk_mask
+                    elif 'or' in eval_expression.lower():
+                        result_mask = result_mask | risk_mask
+                    else:
+                        result_mask = risk_mask
+            
+            if 'provider=' in eval_expression and 'provider' in df.columns:
+                # Extract provider value
+                provider_match = re.search(r"provider\s*=\s*['\"]([^'\"]+)['\"]", eval_expression)
+                if provider_match:
+                    provider_value = provider_match.group(1)
+                    provider_mask = df['provider'] == provider_value
+                    
+                    if 'and' in eval_expression.lower():
+                        result_mask = result_mask & provider_mask
+                    elif 'or' in eval_expression.lower():
+                        result_mask = result_mask | provider_mask
+                    else:
+                        result_mask = provider_mask
+            
+            # Handle IN expressions
+            if ' in ' in eval_expression.lower():
+                in_matches = re.findall(r"(\w+)\s+in\s*\(([^)]+)\)", eval_expression.lower())
+                for field, values_str in in_matches:
+                    # Parse values
+                    values = [v.strip().strip("'\"") for v in values_str.split(',')]
+                    
+                    if field in field_mapping and field_mapping[field] in df.columns:
+                        column_name = field_mapping[field]
+                        if field == 'risk':
+                            values = [v.title() for v in values]  # Convert to title case for risk
+                        
+                        in_mask = df[column_name].isin(values)
+                        
+                        if 'and' in eval_expression.lower():
+                            result_mask = result_mask & in_mask
+                        elif 'or' in eval_expression.lower():
+                            result_mask = result_mask | in_mask
+                        else:
+                            result_mask = in_mask
+            
+            return result_mask
+            
+        except Exception as e:
+            # Return all True if evaluation fails
+            st.warning(f"Filter expression evaluation failed: {e}")
+            return pd.Series([True] * len(df), index=df.index)
     
     def _display_table(self, filtered_df: pd.DataFrame) -> None:
         """
@@ -447,12 +653,25 @@ class DataTableComponent:
                 filtered_df, max_rows=1000
             )
             
-            # Apply search highlighting if there's an active search
+            # Apply search highlighting and current result indication
             search_query = self.session_manager.get_search_query()
+            display_df = optimized_df.copy()
+            
             if search_query.strip():
-                # Note: Streamlit dataframe doesn't support HTML rendering for highlighting
-                # So we'll show the search results count instead
-                pass
+                # Add search highlighting indicators
+                display_df = self._add_search_highlighting(display_df, search_query)
+                
+                # Highlight current search result if navigation is active
+                search_info = self.session_manager.get_current_search_result_info()
+                if search_info['has_results']:
+                    current_result_index = self.session_manager.get_current_search_result_index()
+                    search_indices = self.session_manager.get_search_result_indices()
+                    
+                    if current_result_index < len(search_indices):
+                        current_row_index = search_indices[current_result_index]
+                        # Add indicator for current search result
+                        if current_row_index in display_df.index:
+                            display_df.loc[current_row_index, 'search_indicator'] = '🎯 CURRENT'
             
             # Show truncation warning if applicable
             if is_truncated:
@@ -466,8 +685,12 @@ class DataTableComponent:
                 "risk_level": st.column_config.TextColumn("Risk Level", width="small"),
             }
             
-            if 'provider' in optimized_df.columns:
+            if 'provider' in display_df.columns:
                 column_config["provider"] = st.column_config.TextColumn("Provider", width="small")
+            
+            # Add search indicator column if search is active
+            if search_query.strip() and 'search_indicator' in display_df.columns:
+                column_config["search_indicator"] = st.column_config.TextColumn("Match", width="small")
             
             # Display performance info for large datasets
             if len(filtered_df) > 500:
@@ -485,7 +708,7 @@ class DataTableComponent:
                         st.metric("Cache Size", cache_stats['cache_size'])
             
             st.dataframe(
-                optimized_df,
+                display_df,
                 use_container_width=True,
                 column_config=column_config
             )
