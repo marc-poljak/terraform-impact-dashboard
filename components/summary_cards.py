@@ -39,7 +39,19 @@ class SummaryCardsComponent(BaseComponent):
                 label="🟢 Create",
                 value=summary['create'],
                 delta=f"{summary['create']} resources",
-                help="Number of new resources that will be created. These are resources that don't currently exist in your infrastructure."
+                help="""
+                **Create Actions:**
+                • New resources that will be added to your infrastructure
+                • These resources don't currently exist
+                • Generally safe operations with low risk
+                • May incur additional costs
+                
+                **What to review:**
+                • Resource configurations are correct
+                • Naming conventions are followed
+                • Required dependencies exist
+                • Cost implications are acceptable
+                """
             )
         
         with col2:
@@ -47,7 +59,19 @@ class SummaryCardsComponent(BaseComponent):
                 label="🔵 Update", 
                 value=summary['update'],
                 delta=f"{summary['update']} resources",
-                help="Number of existing resources that will be modified. These changes update configuration of resources already in your infrastructure."
+                help="""
+                **Update Actions:**
+                • Existing resources that will be modified
+                • Configuration changes to current infrastructure
+                • Risk varies based on what's being changed
+                • May cause temporary service disruption
+                
+                **What to review:**
+                • Changes are intentional and necessary
+                • No breaking configuration changes
+                • Backup/rollback plans if needed
+                • Impact on dependent resources
+                """
             )
         
         with col3:
@@ -55,7 +79,19 @@ class SummaryCardsComponent(BaseComponent):
                 label="🔴 Delete",
                 value=summary['delete'],
                 delta=f"{summary['delete']} resources",
-                help="Number of resources that will be destroyed. These resources will be permanently removed from your infrastructure."
+                help="""
+                **Delete Actions:**
+                • Resources that will be permanently removed
+                • Highest risk operations - data may be lost
+                • Cannot be easily undone
+                • May affect dependent resources
+                
+                **Critical review points:**
+                • Confirm deletions are intentional
+                • Backup important data first
+                • Check for resource dependencies
+                • Consider impact on other systems
+                """
             )
         
         with col4:
@@ -69,19 +105,57 @@ class SummaryCardsComponent(BaseComponent):
             
             risk_color = "🟢" if risk_level == "Low" else "🟡" if risk_level == "Medium" else "🔴"
             
-            # Create risk level help text
-            risk_help = {
-                "Low": "Low risk deployment. Changes are safe with minimal impact on your infrastructure.",
-                "Medium": "Medium risk deployment. Changes require attention and careful review before applying.",
-                "High": "High risk deployment. Changes are potentially dangerous and require thorough review.",
-                "Critical": "Critical risk deployment. Changes could cause significant disruption or data loss."
+            # Enhanced risk level help text
+            risk_help_detailed = {
+                "Low": """
+                **Low Risk Deployment** (Score: 0-30)
+                • Changes are generally safe
+                • Minimal impact on existing infrastructure
+                • Low probability of service disruption
+                • Recommended: Standard deployment process
+                """,
+                "Medium": """
+                **Medium Risk Deployment** (Score: 31-70)
+                • Changes require careful review
+                • Moderate impact on infrastructure
+                • Some risk of service disruption
+                • Recommended: Staged deployment with monitoring
+                """,
+                "High": """
+                **High Risk Deployment** (Score: 71-90)
+                • Changes are potentially dangerous
+                • Significant impact on infrastructure
+                • High probability of service disruption
+                • Recommended: Extensive testing and backup plans
+                """,
+                "Critical": """
+                **Critical Risk Deployment** (Score: 91-100)
+                • Changes could cause major disruption
+                • Potential for data loss or system outages
+                • Requires immediate attention and review
+                • Recommended: Manual review and approval process
+                """
             }.get(risk_level, "Risk assessment helps you understand the potential impact of your Terraform changes.")
             
             st.metric(
                 label=f"{risk_color} Risk Level",
                 value=risk_level,
-                delta=f"Score: {risk_score}",
-                help=f"{risk_help} Risk score ranges from 0-100, with higher scores indicating greater potential impact."
+                delta=f"Score: {risk_score}/100",
+                help=f"""
+                {risk_help_detailed}
+                
+                **Risk factors considered:**
+                • Resource types and their criticality
+                • Action types (create/update/delete)
+                • Dependencies between resources
+                • Security and compliance implications
+                
+                **How to reduce risk:**
+                • Review high-risk resources carefully
+                • Use targeted deployments for critical changes
+                • Implement proper backup and rollback procedures
+                • Test changes in non-production environments first
+                """
             )
     
     def render_detailed_metrics(self, summary: Dict[str, int], risk_summary: Dict[str, Any], 

@@ -155,8 +155,47 @@ class DataTableComponent:
         Returns:
             Filtered dataframe
         """
-        # Search functionality
+        # Enhanced search functionality with contextual help
         st.markdown("### 🔍 Search Resources")
+        
+        # Show contextual help for search
+        from ui.error_handler import ErrorHandler
+        error_handler = ErrorHandler()
+        
+        error_handler.show_contextual_help("Resource Search", {
+            'quick_tip': "Search across resource names, types, and addresses using partial matches",
+            'detailed_help': """
+            **Search capabilities:**
+            - **Resource names:** Find resources by their Terraform names
+            - **Resource types:** Search by AWS/Azure/GCP resource types
+            - **Resource addresses:** Search by full Terraform addresses
+            - **Provider names:** Search by cloud provider
+            
+            **Search features:**
+            - Case-insensitive matching
+            - Partial string matching
+            - Real-time filtering as you type
+            - Search result highlighting
+            
+            **Search examples:**
+            - `aws_instance` - Find all EC2 instances
+            - `bucket` - Find S3 buckets or storage accounts
+            - `vpc` - Find VPC or virtual network resources
+            - `security` - Find security groups or policies
+            """,
+            'troubleshooting': """
+            **If search isn't working:**
+            - Check spelling and try partial matches
+            - Clear search and try different terms
+            - Use the data table filters as an alternative
+            - Export data to search externally
+            
+            **Performance tips:**
+            - Search is faster with fewer results
+            - Use filters to narrow down before searching
+            - Clear search when not needed
+            """
+        })
         
         # Search input with clear button
         col1, col2 = st.columns([4, 1])
@@ -165,12 +204,23 @@ class DataTableComponent:
                 "Search by resource name, type, or address",
                 value=self.session_manager.get_search_query(),
                 placeholder="e.g., aws_instance, my-bucket, vpc",
-                help="Search across resource names, types, and addresses. Supports partial matches and is case-insensitive.",
+                help="""
+                **Search tips:**
+                • Type any part of resource name, type, or address
+                • Search is case-insensitive and supports partial matches
+                • Results update automatically as you type
+                • Use filters in sidebar for more precise control
+                
+                **Examples:**
+                • `aws_instance` → Find all EC2 instances
+                • `bucket` → Find storage buckets
+                • `security` → Find security-related resources
+                """,
                 key="resource_search_input"
             )
         
         with col2:
-            if st.button("Clear", help="Clear search query"):
+            if st.button("Clear", help="Clear search query and show all resources"):
                 self.session_manager.clear_search()
                 st.rerun()
         
@@ -250,12 +300,44 @@ class DataTableComponent:
         # Update search results count
         self.session_manager.set_search_results_count(len(filtered_df))
         
-        # Display search results summary
+        # Enhanced search results summary with guidance
         if search_query.strip():
             if len(filtered_df) > 0:
-                st.success(f"🔍 Found {len(filtered_df)} resource(s) matching '{search_query}'")
+                st.success(f"🔍 **Found {len(filtered_df)} resource(s)** matching '{search_query}'")
+                
+                # Show search performance tip for large result sets
+                if len(filtered_df) > 100:
+                    error_handler.show_feature_tooltip(
+                        "Large Search Results",
+                        f"Found {len(filtered_df)} matches. Consider using more specific search terms or sidebar filters for better performance.",
+                        "tip"
+                    )
             else:
-                st.warning(f"🔍 No resources found matching '{search_query}'")
+                st.warning(f"🔍 **No resources found** matching '{search_query}'")
+                
+                # Provide helpful suggestions for no results
+                error_handler.show_progressive_disclosure(
+                    "**Try these search improvements:**",
+                    f"""
+                    **Broaden your search:**
+                    - Try shorter, more general terms
+                    - Check for typos in '{search_query}'
+                    - Use partial matches (e.g., 'aws' instead of 'aws_instance')
+                    
+                    **Alternative approaches:**
+                    - Use sidebar filters instead of search
+                    - Clear all filters and search again
+                    - Browse the full table below
+                    - Export data for external search tools
+                    
+                    **Common search terms:**
+                    - Resource types: `aws_instance`, `azurerm_`, `google_`
+                    - Actions: `create`, `update`, `delete`
+                    - Services: `bucket`, `database`, `network`, `security`
+                    """,
+                    "Search Suggestions",
+                    expanded=False
+                )
         
         return filtered_df
     

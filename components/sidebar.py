@@ -18,7 +18,7 @@ class SidebarComponent:
     
     def render(self, enhanced_features_available: bool, enhanced_risk_result=None, enable_multi_cloud=True) -> dict:
         """
-        Render the sidebar with title, controls, and status information.
+        Render the sidebar with enhanced guidance, title, controls, and status information.
         
         Args:
             enhanced_features_available (bool): Whether enhanced multi-cloud features are available
@@ -28,34 +28,154 @@ class SidebarComponent:
         Returns:
             dict: Dictionary containing the current state of sidebar controls
         """
+        from ui.error_handler import ErrorHandler
+        error_handler = ErrorHandler()
+        
         # Sidebar title and header
         st.sidebar.title("📊 Dashboard Controls")
         st.sidebar.markdown("---")
         
-        # Show enhanced features status
-        if enhanced_features_available:
-            st.sidebar.success("🌟 Enhanced multi-cloud features available!")
-        else:
-            st.sidebar.warning("⚙️ Basic mode - Enhanced features unavailable")
-            st.sidebar.info("To enable multi-cloud features, ensure all provider files are in place")
+        # Enhanced features status with detailed explanation
+        st.sidebar.markdown("### 🌟 Feature Status")
         
-        # Debug toggle checkbox with tooltip
+        if enhanced_features_available:
+            error_handler.show_feature_status(
+                "Enhanced Multi-Cloud Features",
+                True,
+                help_text="Advanced provider detection, cross-cloud risk analysis, and multi-cloud visualizations are available."
+            )
+        else:
+            error_handler.show_feature_status(
+                "Enhanced Multi-Cloud Features", 
+                False,
+                reason="Required dependencies not found",
+                help_text="""
+                **To enable enhanced features:**
+                
+                1. **Check file structure:** Ensure all provider files are in the `providers/` directory
+                2. **Verify dependencies:** Enhanced features require additional Python packages
+                3. **Restart application:** After installing dependencies, restart the dashboard
+                
+                **What you're missing:**
+                - Advanced provider detection
+                - Cross-cloud risk analysis
+                - Multi-cloud visualizations
+                - Provider-specific recommendations
+                
+                **Basic features still available:**
+                - Core risk assessment
+                - Resource change analysis
+                - Standard visualizations
+                - Data export functionality
+                """
+            )
+        
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### ⚙️ Analysis Options")
+        
+        # Debug toggle with enhanced help
         show_debug = st.sidebar.checkbox(
             "🔍 Show Debug Information", 
             value=False,
-            help="Enable to see detailed parsing information, plan structure analysis, and error diagnostics. Useful for troubleshooting issues with plan processing."
+            help="""
+            **Debug mode shows:**
+            • Detailed parsing information
+            • Plan structure analysis
+            • Error diagnostics and stack traces
+            • Performance metrics
+            • Cache statistics
+            
+            **When to enable:**
+            • Troubleshooting upload issues
+            • Understanding plan processing
+            • Performance analysis
+            • Reporting bugs or issues
+            
+            **Note:** Debug information appears throughout the dashboard when enabled.
+            """
         )
         
-        # Multi-cloud features toggle (only show if enhanced features are available)
+        # Show debug mode explanation when enabled
+        if show_debug:
+            st.sidebar.info("🔍 Debug mode active - detailed information will be shown throughout the dashboard")
+        
+        # Multi-cloud features toggle with progressive disclosure
         enable_multi_cloud_toggle = True
         if enhanced_features_available:
             enable_multi_cloud_toggle = st.sidebar.checkbox(
                 "🌐 Enable Multi-Cloud Features", 
                 value=True,
-                help="Enable advanced multi-cloud analysis including cross-provider risk assessment, provider-specific insights, and multi-cloud visualizations. Requires enhanced features to be available."
+                help="""
+                **Multi-cloud features include:**
+                • Cross-provider risk assessment
+                • Provider-specific insights
+                • Multi-cloud visualizations
+                • Cloud service usage patterns
+                • Cross-cloud security analysis
+                
+                **Performance impact:**
+                • Slightly slower processing for large plans
+                • Additional memory usage
+                • More detailed analysis
+                
+                **Disable if:**
+                • Using single cloud provider only
+                • Need faster processing
+                • Experiencing performance issues
+                """
             )
-            if not enable_multi_cloud_toggle:
-                st.sidebar.info("Multi-cloud features disabled - using basic mode")
+            
+            # Show status and guidance based on toggle state
+            if enable_multi_cloud_toggle:
+                st.sidebar.success("🌐 Multi-cloud analysis enabled")
+                
+                # Show onboarding hint for multi-cloud features
+                error_handler.show_onboarding_hint(
+                    "Multi-Cloud Analysis",
+                    "Look for provider-specific sections and cross-cloud insights in your analysis results.",
+                    show_once=True
+                )
+            else:
+                st.sidebar.info("🌐 Using basic single-provider mode")
+                error_handler.show_progressive_disclosure(
+                    "**Basic mode active:** Analysis will focus on single-provider insights.",
+                    """
+                    **What's different in basic mode:**
+                    - Faster processing for large plans
+                    - Single-provider risk assessment
+                    - Standard visualizations only
+                    - No cross-cloud insights
+                    
+                    **To get multi-cloud features:**
+                    - Enable the checkbox above
+                    - Ensure your plan contains multiple providers
+                    - Allow extra processing time for large plans
+                    """,
+                    "Multi-Cloud Mode Benefits"
+                )
+        else:
+            st.sidebar.info("🌐 Multi-cloud features unavailable - using basic mode")
+        
+        # Show feature comparison for new users
+        if st.sidebar.button("❓ Compare Feature Modes", help="See the differences between basic and enhanced modes"):
+            with st.sidebar.expander("📊 Feature Comparison", expanded=True):
+                st.markdown("""
+                **Basic Mode:**
+                ✅ Core risk assessment
+                ✅ Resource change analysis  
+                ✅ Standard charts
+                ✅ Data filtering & export
+                ❌ Multi-cloud insights
+                ❌ Provider-specific analysis
+                
+                **Enhanced Mode:**
+                ✅ Everything in Basic Mode
+                ✅ Advanced provider detection
+                ✅ Cross-cloud risk analysis
+                ✅ Multi-cloud visualizations
+                ✅ Provider-specific recommendations
+                ✅ Security compliance checks
+                """)
         
         # Return the current state
         return {

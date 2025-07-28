@@ -16,6 +16,7 @@ from components.data_table import DataTableComponent
 from components.enhanced_sections import EnhancedSectionsComponent
 from components.report_generator import ReportGeneratorComponent
 from components.security_analysis import SecurityAnalysisComponent
+from components.help_system import HelpSystemComponent
 
 # Import UI utilities
 from ui.session_manager import SessionStateManager
@@ -588,6 +589,7 @@ def main():
     enhanced_sections = EnhancedSectionsComponent()
     report_generator = ReportGeneratorComponent(session_manager)
     security_analysis = SecurityAnalysisComponent(session_manager)
+    help_system = HelpSystemComponent(session_manager)
     
     # Render CSS and header
     header.render_css()
@@ -597,6 +599,9 @@ def main():
     sidebar_state = sidebar.render(ENHANCED_FEATURES_AVAILABLE)
     show_debug = sidebar_state['show_debug']
     enable_multi_cloud = sidebar_state['enable_multi_cloud']
+    
+    # Render help system in sidebar
+    help_system.render_help_sidebar()
     
     # Update error handler debug mode and session state
     error_handler.debug_mode = show_debug
@@ -625,8 +630,26 @@ def main():
         risk_summary = processed_data['risk_summary']
         chart_gen = processed_data['chart_gen']
 
-        # Display success message
-        st.success("✅ Plan processed successfully!")
+        # Enhanced success message with guidance
+        from ui.error_handler import ErrorHandler
+        error_handler = ErrorHandler(debug_mode=show_debug)
+        
+        st.success("✅ **Plan processed successfully!**")
+        
+        # Show onboarding guidance for new users
+        error_handler.show_onboarding_hint(
+            "Dashboard Navigation",
+            "Your plan analysis is ready! Scroll down to explore summary cards, visualizations, and detailed resource tables.",
+            show_once=True
+        )
+        
+        # Show performance info for large plans
+        if len(resource_changes) > 100:
+            error_handler.show_feature_tooltip(
+                "Large Plan Detected",
+                f"Your plan contains {len(resource_changes)} resource changes. Some features may take longer to load.",
+                "performance"
+            )
 
         # Enhanced Multi-Cloud Sections (only if enhanced features enabled)
         if ENHANCED_FEATURES_AVAILABLE and enable_multi_cloud and enhanced_risk_assessor:
@@ -689,6 +712,9 @@ def main():
     else:
         # Show enhanced instructions when no file is uploaded
         render_enhanced_instructions()
+        
+        # Show onboarding checklist for new users
+        help_system.render_onboarding_checklist()
 
 
 if __name__ == "__main__":
