@@ -5,7 +5,7 @@ Centralized error handling for the dashboard with user-friendly messages.
 """
 
 import streamlit as st
-from typing import Optional, Any
+from typing import Optional, Any, List
 import traceback
 
 
@@ -665,8 +665,360 @@ class ErrorHandler:
         st.markdown(basic_content)
         
         # Show advanced content in expander
-        with st.expander(f"🔧 {title}", expanded=expanded):
+        with st.expander(title, expanded=expanded):
             st.markdown(advanced_content)
+    
+    def show_onboarding_hint(self, feature_name: str, hint_text: str, show_once: bool = False) -> None:
+        """
+        Show onboarding hints for new users with smart defaults
+        
+        Args:
+            feature_name: Name of the feature to show hint for
+            hint_text: The hint text to display
+            show_once: Whether to show this hint only once per session
+        """
+        hint_key = f"onboarding_hint_{feature_name.lower().replace(' ', '_')}"
+        
+        if show_once and st.session_state.get(f"{hint_key}_shown", False):
+            return
+        
+        # Show hint with contextual styling
+        st.info(f"💡 **{feature_name}:** {hint_text}")
+        
+        if show_once:
+            st.session_state[f"{hint_key}_shown"] = True
+    
+    def show_data_quality_warning(self, data_type: str, issues: List[str], suggestions: List[str]) -> None:
+        """
+        Show data quality warnings with actionable suggestions
+        
+        Args:
+            data_type: Type of data with quality issues
+            issues: List of identified issues
+            suggestions: List of actionable suggestions
+        """
+        st.warning(f"⚠️ **Data Quality Issues in {data_type}**")
+        
+        with st.expander("📋 **Issues Found**", expanded=True):
+            for issue in issues:
+                st.write(f"• {issue}")
+        
+        if suggestions:
+            with st.expander("💡 **Suggested Actions**", expanded=True):
+                for i, suggestion in enumerate(suggestions, 1):
+                    st.write(f"{i}. {suggestion}")
+    
+    def show_interactive_onboarding(self) -> None:
+        """Show interactive onboarding for new users"""
+        if not st.session_state.get('onboarding_completed', False):
+            onboarding_step = st.session_state.get('onboarding_step', 0)
+            
+            if onboarding_step == 0:
+                # Welcome step
+                st.success("🎉 **Welcome to the Terraform Plan Impact Dashboard!**")
+                
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.markdown("""
+                    This interactive guide will help you get started with analyzing your Terraform plans.
+                    You'll learn how to upload files, interpret results, and use advanced features.
+                    """)
+                
+                with col2:
+                    if st.button("🚀 Start Guide", type="primary"):
+                        st.session_state['onboarding_step'] = 1
+                        st.rerun()
+                
+                if st.button("⏭️ Skip Onboarding"):
+                    st.session_state['onboarding_completed'] = True
+                    st.rerun()
+                    
+            elif onboarding_step == 1:
+                # File upload guidance
+                self._show_onboarding_step(
+                    step=1,
+                    title="Upload Your Terraform Plan",
+                    content="""
+                    **First, you need a Terraform plan in JSON format.**
+                    
+                    Generate one using these commands:
+                    ```bash
+                    terraform plan -out=tfplan
+                    terraform show -json tfplan > plan.json
+                    ```
+                    
+                    Then upload the `plan.json` file using the file uploader above.
+                    """,
+                    next_action="Upload a file to continue"
+                )
+                
+            elif onboarding_step == 2:
+                # Analysis interpretation
+                self._show_onboarding_step(
+                    step=2,
+                    title="Understanding Your Analysis",
+                    content="""
+                    **After uploading, you'll see several sections:**
+                    
+                    📊 **Summary Cards** - Quick overview of changes and risk levels
+                    📈 **Visualizations** - Interactive charts showing resource patterns  
+                    📋 **Data Table** - Detailed resource information with filtering
+                    ⚠️ **Risk Assessment** - Intelligent scoring of deployment risks
+                    """,
+                    next_action="Explore the analysis sections"
+                )
+                
+            elif onboarding_step == 3:
+                # Feature discovery
+                self._show_onboarding_step(
+                    step=3,
+                    title="Discover Advanced Features",
+                    content="""
+                    **Enhance your analysis with these features:**
+                    
+                    🔍 **Smart Filtering** - Focus on specific resources or risk levels
+                    🌐 **Multi-Cloud Analysis** - Cross-provider insights (when available)
+                    📄 **Report Generation** - Export comprehensive reports
+                    🔒 **Security Analysis** - Security-focused resource highlighting
+                    """,
+                    next_action="Try using the sidebar filters"
+                )
+    
+    def _show_onboarding_step(self, step: int, title: str, content: str, next_action: str) -> None:
+        """Show individual onboarding step with navigation"""
+        with st.container():
+            st.info(f"**Step {step}/3: {title}**")
+            st.markdown(content)
+            
+            col1, col2, col3 = st.columns([1, 2, 1])
+            
+            with col1:
+                if step > 1 and st.button("⬅️ Previous"):
+                    st.session_state['onboarding_step'] = step - 1
+                    st.rerun()
+            
+            with col2:
+                st.caption(f"💡 {next_action}")
+            
+            with col3:
+                if step < 3:
+                    if st.button("➡️ Next"):
+                        st.session_state['onboarding_step'] = step + 1
+                        st.rerun()
+                else:
+                    if st.button("✅ Complete"):
+                        st.session_state['onboarding_completed'] = True
+                        st.success("🎉 Onboarding completed! You're ready to analyze Terraform plans.")
+                        st.rerun()
+    
+    def show_feature_discovery_popup(self, feature_name: str, description: str, 
+                                   benefits: List[str], how_to_use: str) -> None:
+        """
+        Show feature discovery popup for newly discovered features
+        
+        Args:
+            feature_name: Name of the discovered feature
+            description: Description of what the feature does
+            benefits: List of benefits this feature provides
+            how_to_use: Instructions on how to use the feature
+        """
+        discovery_key = f"discovered_{feature_name.lower().replace(' ', '_')}"
+        
+        if not st.session_state.get(discovery_key, False):
+            with st.expander(f"✨ **New Feature Discovered: {feature_name}**", expanded=True):
+                st.markdown(f"**{description}**")
+                
+                if benefits:
+                    st.markdown("**🎯 Benefits:**")
+                    for benefit in benefits:
+                        st.write(f"• {benefit}")
+                
+                st.info(f"**💡 How to use:** {how_to_use}")
+                
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    if st.button("🚀 Try It Now", key=f"try_{discovery_key}"):
+                        st.session_state[discovery_key] = True
+                        st.session_state[f"{discovery_key}_activated"] = True
+                        st.rerun()
+                
+                with col2:
+                    if st.button("✅ Got It", key=f"dismiss_{discovery_key}"):
+                        st.session_state[discovery_key] = True
+                        st.rerun()
+    
+    def apply_smart_defaults_for_use_case(self, use_case: str) -> None:
+        """
+        Apply smart defaults based on common use cases
+        
+        Args:
+            use_case: The selected use case scenario
+        """
+        defaults = {
+            'Security Review': {
+                'risk_filter': ['High', 'Critical'],
+                'search_focus': 'security|iam|policy|role|group|firewall',
+                'show_help': True,
+                'message': 'Applied security-focused defaults: showing high-risk changes and security-related resources'
+            },
+            'Production Deployment': {
+                'risk_filter': ['Medium', 'High', 'Critical'],
+                'action_filter': ['delete', 'replace', 'update'],
+                'show_help': True,
+                'message': 'Applied production defaults: focusing on potentially disruptive changes'
+            },
+            'Development Testing': {
+                'action_filter': ['create', 'update', 'delete', 'replace'],
+                'risk_filter': ['Low', 'Medium', 'High', 'Critical'],
+                'debug_mode': True,
+                'message': 'Applied development defaults: showing all changes with debug information'
+            },
+            'Multi-Cloud Migration': {
+                'multi_cloud_enabled': True,
+                'show_help': True,
+                'message': 'Applied multi-cloud defaults: enabled cross-provider analysis features'
+            },
+            'Cost Optimization': {
+                'search_focus': 'instance|compute|storage|database|rds|ec2|vm|disk',
+                'action_filter': ['create', 'update', 'replace'],
+                'message': 'Applied cost optimization defaults: focusing on compute and storage resources'
+            }
+        }
+        
+        if use_case in defaults:
+            config = defaults[use_case]
+            
+            # Apply the defaults to session state
+            for key, value in config.items():
+                if key != 'message':
+                    st.session_state[key] = value
+            
+            # Show confirmation message
+            st.success(f"✅ {config['message']}")
+    
+    def show_contextual_tips(self, context: str, tips: List[str]) -> None:
+        """
+        Show contextual tips based on current user context
+        
+        Args:
+            context: Current context (e.g., 'file_upload', 'analysis', 'filtering')
+            tips: List of relevant tips to show
+        """
+        tip_key = f"tips_{context}"
+        
+        if not st.session_state.get(f"{tip_key}_dismissed", False):
+            with st.expander(f"💡 **Tips for {context.replace('_', ' ').title()}**", expanded=False):
+                for i, tip in enumerate(tips, 1):
+                    st.write(f"{i}. {tip}")
+                
+                if st.button("✅ Got it!", key=f"dismiss_{tip_key}"):
+                    st.session_state[f"{tip_key}_dismissed"] = True
+                    st.rerun()
+    
+    def track_user_progress(self, milestone: str) -> None:
+        """
+        Track user progress through the application for better onboarding
+        
+        Args:
+            milestone: The milestone achieved (e.g., 'file_uploaded', 'filters_used')
+        """
+        milestones = st.session_state.get('user_milestones', [])
+        
+        if milestone not in milestones:
+            milestones.append(milestone)
+            st.session_state['user_milestones'] = milestones
+            
+            # Show progress-based hints
+            self._show_progress_based_hints(milestone, len(milestones))
+    
+    def _show_progress_based_hints(self, latest_milestone: str, total_milestones: int) -> None:
+        """Show hints based on user progress"""
+        hints = {
+            'file_uploaded': "Great! Your file is uploaded. Next, explore the summary cards below to understand your changes.",
+            'summary_viewed': "Nice! You've seen the overview. Try the interactive charts for visual insights.",
+            'charts_viewed': "Excellent! Now check out the detailed data table for specific resource information.",
+            'filters_used': "Perfect! You're using filters effectively. Consider exporting your filtered results.",
+            'data_exported': "Outstanding! You're making full use of the dashboard's capabilities."
+        }
+        
+        if latest_milestone in hints and total_milestones <= 3:  # Only show for early users
+            st.info(f"🎯 **Progress Update:** {hints[latest_milestone]}")
+    
+    def show_keyboard_shortcuts_guide(self) -> None:
+        """Show keyboard shortcuts and accessibility features"""
+        with st.expander("⌨️ **Keyboard Shortcuts & Accessibility**", expanded=False):
+            st.markdown("""
+            **Navigation Shortcuts:**
+            - `Tab` / `Shift+Tab` - Navigate between interactive elements
+            - `Enter` / `Space` - Activate buttons and controls
+            - `Esc` - Close modals and expandable sections
+            
+            **Filter Shortcuts:**
+            - `Ctrl+F` / `Cmd+F` - Focus search box (when available)
+            - `Arrow Keys` - Navigate dropdown options
+            - `Enter` - Apply selected filters
+            
+            **Accessibility Features:**
+            - Screen reader compatible
+            - High contrast mode support
+            - Keyboard-only navigation
+            - Focus indicators on all interactive elements
+            
+            **Export Shortcuts:**
+            - `Ctrl+S` / `Cmd+S` - Quick save/export (when export is active)
+            """)
+    
+    def _show_error_details(self, error: Exception) -> None:
+        """
+        Show error details in debug mode with enhanced troubleshooting
+        
+        Args:
+            error: The exception to show details for
+        """
+        if self.debug_mode:
+            with st.expander("🐛 **Debug Information**", expanded=False):
+                st.code(f"Error Type: {type(error).__name__}")
+                st.code(f"Error Message: {str(error)}")
+                
+                # Show stack trace for debugging
+                if hasattr(error, '__traceback__'):
+                    st.code("Stack Trace:")
+                    st.code(traceback.format_exc())
+                
+                # Show troubleshooting suggestions based on error type
+                self._show_error_specific_troubleshooting(error)
+    
+    def _show_error_specific_troubleshooting(self, error: Exception) -> None:
+        """Show specific troubleshooting based on error type"""
+        error_type = type(error).__name__
+        
+        troubleshooting = {
+            'JSONDecodeError': [
+                "Validate JSON syntax using an online JSON validator",
+                "Re-generate the Terraform plan JSON file",
+                "Check if the file upload completed successfully"
+            ],
+            'KeyError': [
+                "Verify the Terraform plan contains the expected structure",
+                "Check if the plan was generated with a compatible Terraform version",
+                "Try generating the plan with different output options"
+            ],
+            'ImportError': [
+                "Check if all required dependencies are installed",
+                "Verify the Python environment has necessary packages",
+                "Try refreshing the page to reload modules"
+            ],
+            'MemoryError': [
+                "Try uploading a smaller plan file",
+                "Use targeted Terraform plans with -target flag",
+                "Close other browser tabs to free memory"
+            ]
+        }
+        
+        if error_type in troubleshooting:
+            st.markdown("**🔧 Specific Troubleshooting Steps:**")
+            for step in troubleshooting[error_type]:
+                st.write(f"• {step}")
     
     def show_onboarding_hint(self, feature_name: str, hint_text: str, 
                            show_once: bool = True) -> None:

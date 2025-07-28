@@ -48,6 +48,26 @@ class DataTableComponent:
         
         # Create detailed dataframe with performance optimization
         try:
+            # Track filter usage for onboarding
+            from ui.error_handler import ErrorHandler
+            error_handler = ErrorHandler()
+            
+            # Check if filters are being used
+            current_filters = self.session_manager.get_filter_state()
+            default_filters = {
+                'action_filter': ['create', 'update', 'delete', 'replace'],
+                'risk_filter': ['Low', 'Medium', 'High'],
+                'provider_filter': []
+            }
+            
+            filters_modified = (
+                current_filters['action_filter'] != default_filters['action_filter'] or
+                current_filters['risk_filter'] != default_filters['risk_filter'] or
+                len(current_filters['provider_filter']) > 0
+            )
+            
+            if filters_modified:
+                error_handler.track_user_progress('filters_used')
             # Use performance optimizer for dataframe creation
             with self.performance_optimizer.performance_monitor("dataframe_creation"):
                 detailed_df = self.performance_optimizer.optimize_dataframe_creation(
@@ -472,16 +492,25 @@ class DataTableComponent:
     
     def _display_download_button(self, filtered_df: pd.DataFrame) -> None:
         """
-        Display download button for filtered data
+        Display download button for filtered data with progress tracking
         
         Args:
             filtered_df: Filtered dataframe to export
         """
         csv = filtered_df.to_csv(index=False)
-        st.download_button(
+        
+        # Track export usage for onboarding
+        if st.download_button(
             label="📥 Download Filtered Data as CSV",
             data=csv,
             file_name="terraform_plan_changes.csv",
             mime="text/csv",
             help="Download the currently filtered resource changes as a CSV file. Includes all visible columns with resource details, actions, and risk assessments. Perfect for reporting or further analysis in spreadsheet applications."
-        )
+        ):
+            # Track data export for onboarding progress
+            from ui.error_handler import ErrorHandler
+            error_handler = ErrorHandler()
+            error_handler.track_user_progress('data_exported')
+            
+            # Show export success hint
+            st.success("✅ Data exported successfully! The CSV file contains all filtered resource details.")

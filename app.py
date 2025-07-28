@@ -17,6 +17,7 @@ from components.enhanced_sections import EnhancedSectionsComponent
 from components.report_generator import ReportGeneratorComponent
 from components.security_analysis import SecurityAnalysisComponent
 from components.help_system import HelpSystemComponent
+from components.onboarding_checklist import OnboardingChecklistComponent
 
 # Import UI utilities
 from ui.session_manager import SessionStateManager
@@ -83,14 +84,96 @@ def render_debug_section(debug_info, resource_changes, summary, enhanced_feature
 def render_enhanced_instructions():
     """
     Render enhanced instructions and onboarding for new users.
-    Provides detailed guidance on file format, usage, and features.
+    Provides detailed guidance on file format, usage, and features with interactive tutorials.
     """
+    # Initialize help system for onboarding
+    help_system = HelpSystemComponent()
+    error_handler = ErrorHandler()
+    
+    # Show welcome guide for first-time users
+    help_system.show_welcome_guide()
+    
+    # Show interactive onboarding if not completed
+    error_handler.show_interactive_onboarding()
+    
     # Welcome section with clear overview
     st.markdown("## 🚀 Welcome to Terraform Plan Impact Dashboard")
     st.markdown("""
     This dashboard helps you analyze and visualize Terraform plan changes before deployment. 
     Get insights into resource changes, risk assessment, and multi-cloud impacts.
     """)
+    
+    # Interactive tutorial section
+    if st.button("🎓 Start Interactive Tutorial"):
+        st.session_state['tutorial_step'] = 0
+        st.rerun()
+    
+    # Show tutorial if active
+    if st.session_state.get('tutorial_step', -1) >= 0:
+        help_system.render_interactive_tutorial()
+    
+    # Smart defaults section
+    st.markdown("---")
+    st.markdown("### 🎯 Quick Start with Smart Defaults")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.markdown("""
+        **New to the dashboard?** Choose your primary use case to apply optimized settings:
+        """)
+        
+        use_case = st.selectbox(
+            "Select your use case:",
+            [
+                "General Analysis",
+                "Security Review", 
+                "Production Deployment",
+                "Development Testing",
+                "Multi-Cloud Migration",
+                "Cost Optimization"
+            ],
+            help="This will configure filters and settings optimized for your specific needs"
+        )
+    
+    with col2:
+        if st.button("🔧 Apply Smart Defaults", type="primary"):
+            error_handler.apply_smart_defaults_for_use_case(use_case)
+            
+            # Show contextual tips for the selected use case
+            use_case_tips = {
+                'Security Review': [
+                    "Focus on IAM roles, policies, and security groups",
+                    "Pay special attention to high-risk deletions",
+                    "Use the security analysis section for detailed insights"
+                ],
+                'Production Deployment': [
+                    "Review all medium and high-risk changes carefully",
+                    "Check for potential downtime-causing operations",
+                    "Consider deployment timing and rollback plans"
+                ],
+                'Development Testing': [
+                    "Debug mode is enabled for detailed information",
+                    "All change types are visible for comprehensive testing",
+                    "Use filters to focus on specific areas of interest"
+                ],
+                'Multi-Cloud Migration': [
+                    "Multi-cloud features are enabled for cross-provider analysis",
+                    "Look for provider-specific recommendations",
+                    "Check the cross-cloud insights section"
+                ],
+                'Cost Optimization': [
+                    "Focus on compute and storage resources",
+                    "Look for resource size changes and new instances",
+                    "Consider the cost impact of create and replace operations"
+                ]
+            }
+            
+            if use_case in use_case_tips:
+                error_handler.show_contextual_tips(
+                    f"{use_case.lower().replace(' ', '_')}_tips",
+                    use_case_tips[use_case]
+                )
     
     # Getting started section with detailed steps
     st.markdown("---")
@@ -590,6 +673,7 @@ def main():
     report_generator = ReportGeneratorComponent(session_manager)
     security_analysis = SecurityAnalysisComponent(session_manager)
     help_system = HelpSystemComponent(session_manager)
+    onboarding_checklist = OnboardingChecklistComponent(session_manager)
     
     # Render CSS and header
     header.render_css()
@@ -600,16 +684,30 @@ def main():
     show_debug = sidebar_state['show_debug']
     enable_multi_cloud = sidebar_state['enable_multi_cloud']
     
-    # Render help system in sidebar
+    # Render help system in sidebar with enhanced onboarding
     help_system.render_help_sidebar()
+    help_system.render_feature_discovery_hints()
+    help_system.render_smart_defaults_guide()
+    help_system.render_guided_tour_controls()
+    
+    # Render onboarding progress in sidebar
+    onboarding_checklist.render_progress_indicator()
     
     # Update error handler debug mode and session state
     error_handler.debug_mode = show_debug
     session_manager.set_debug_state(show_debug)
     session_manager.set_multi_cloud_state(enable_multi_cloud)
     
-    # Render upload section
+    # Render upload section with onboarding integration
     uploaded_file = upload.render()
+    
+    # Show contextual onboarding hints
+    onboarding_checklist.render_contextual_hints('file_upload')
+    
+    # Track user progress for onboarding
+    if uploaded_file is not None:
+        error_handler.track_user_progress('file_uploaded')
+        onboarding_checklist.mark_item_completed('file_uploaded')
 
     if uploaded_file is not None:
         # Process plan data using centralized workflow with enhanced progress tracking
@@ -663,6 +761,13 @@ def main():
 
         # Summary Cards Section using component
         summary_cards.render(summary, risk_summary, resource_types, plan_data, debug_info)
+        
+        # Show contextual onboarding hints
+        onboarding_checklist.render_contextual_hints('analysis')
+        
+        # Track progress for onboarding
+        error_handler.track_user_progress('summary_viewed')
+        onboarding_checklist.mark_item_completed('summary_reviewed')
 
         # Visualizations Section using component
         visualizations.render(
@@ -677,6 +782,10 @@ def main():
             enable_multi_cloud=enable_multi_cloud,
             show_debug=show_debug
         )
+        
+        # Track progress for onboarding
+        error_handler.track_user_progress('charts_viewed')
+        onboarding_checklist.mark_item_completed('charts_explored')
 
         # Security Analysis Section using component
         security_analysis.render_security_highlighting(resource_changes)
@@ -692,6 +801,10 @@ def main():
             enhanced_risk_result=enhanced_risk_result,
             enable_multi_cloud=enable_multi_cloud
         )
+        
+        # Show contextual onboarding hints for filtering
+        onboarding_checklist.render_contextual_hints('filtering')
+        onboarding_checklist.mark_item_completed('table_browsed')
 
         # Report Generator Section using component
         report_generator.render_report_generator(
@@ -710,8 +823,11 @@ def main():
         )
 
     else:
+        # Show comprehensive onboarding checklist
+        onboarding_checklist.render()
+        
         # Show enhanced instructions when no file is uploaded
-        render_enhanced_instructions()
+        render_enhanced_instructions()ctions()
         
         # Show onboarding checklist for new users
         help_system.render_onboarding_checklist()

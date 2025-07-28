@@ -39,17 +39,23 @@ class SidebarComponent:
         st.sidebar.markdown("### 🌟 Feature Status")
         
         if enhanced_features_available:
-            error_handler.show_feature_status(
-                "Enhanced Multi-Cloud Features",
-                True,
-                help_text="Advanced provider detection, cross-cloud risk analysis, and multi-cloud visualizations are available."
+            st.sidebar.success("✅ Enhanced Multi-Cloud Features Available")
+            error_handler.show_onboarding_hint(
+                "Multi-Cloud Features",
+                "Advanced provider detection and cross-cloud analysis are enabled for comprehensive multi-cloud insights.",
+                show_once=True
             )
         else:
-            error_handler.show_feature_status(
-                "Enhanced Multi-Cloud Features", 
-                False,
-                reason="Required dependencies not found",
-                help_text="""
+            st.sidebar.info("ℹ️ Basic Features Available")
+            error_handler.show_onboarding_hint(
+                "Basic Mode",
+                "Core functionality is available. Enhanced features require additional dependencies.",
+                show_once=True
+            )
+            
+            # Show detailed help about missing features
+            with st.sidebar.expander("❓ About Enhanced Features", expanded=False):
+                st.markdown("""
                 **To enable enhanced features:**
                 
                 1. **Check file structure:** Ensure all provider files are in the `providers/` directory
@@ -67,8 +73,7 @@ class SidebarComponent:
                 - Resource change analysis
                 - Standard visualizations
                 - Data export functionality
-                """
-            )
+                """)
         
         st.sidebar.markdown("---")
         st.sidebar.markdown("### ⚙️ Analysis Options")
