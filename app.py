@@ -15,6 +15,7 @@ from components.visualizations import VisualizationsComponent
 from components.data_table import DataTableComponent
 from components.enhanced_sections import EnhancedSectionsComponent
 from components.report_generator import ReportGeneratorComponent
+from components.security_analysis import SecurityAnalysisComponent
 
 # Import UI utilities
 from ui.session_manager import SessionStateManager
@@ -586,6 +587,7 @@ def main():
     data_table = DataTableComponent()
     enhanced_sections = EnhancedSectionsComponent()
     report_generator = ReportGeneratorComponent(session_manager)
+    security_analysis = SecurityAnalysisComponent(session_manager)
     
     # Render CSS and header
     header.render_css()
@@ -652,6 +654,11 @@ def main():
             enable_multi_cloud=enable_multi_cloud,
             show_debug=show_debug
         )
+
+        # Security Analysis Section using component
+        security_analysis.render_security_highlighting(resource_changes)
+        security_analysis.render_compliance_checks(resource_changes)
+        security_dashboard_data = security_analysis.render_security_dashboard(resource_changes)
 
         # Data Table Section using component
         data_table.render(
