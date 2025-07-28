@@ -701,6 +701,9 @@ def main():
     # Render upload section with onboarding integration
     uploaded_file = upload.render()
     
+    # Show contextual help for upload section
+    help_system.render_contextual_help_panel('upload')
+    
     # Show contextual onboarding hints
     onboarding_checklist.render_contextual_hints('file_upload')
     
@@ -729,8 +732,8 @@ def main():
         chart_gen = processed_data['chart_gen']
 
         # Enhanced success message with guidance
-        from ui.error_handler import ErrorHandler
-        error_handler = ErrorHandler(debug_mode=show_debug)
+        # Update error handler debug mode
+        error_handler.debug_mode = show_debug
         
         st.success("✅ **Plan processed successfully!**")
         
@@ -761,6 +764,9 @@ def main():
 
         # Summary Cards Section using component
         summary_cards.render(summary, risk_summary, resource_types, plan_data, debug_info)
+        
+        # Show contextual help for analysis results
+        help_system.render_contextual_help_panel('analysis')
         
         # Show contextual onboarding hints
         onboarding_checklist.render_contextual_hints('analysis')
@@ -802,6 +808,9 @@ def main():
             enable_multi_cloud=enable_multi_cloud
         )
         
+        # Show contextual help for filtering and search
+        help_system.render_contextual_help_panel('filters')
+        
         # Show contextual onboarding hints for filtering
         onboarding_checklist.render_contextual_hints('filtering')
         onboarding_checklist.mark_item_completed('table_browsed')
@@ -827,7 +836,11 @@ def main():
         onboarding_checklist.render()
         
         # Show enhanced instructions when no file is uploaded
-        render_enhanced_instructions()ctions()
+        render_enhanced_instructions()
+        
+        # Show accessibility documentation if requested
+        if st.session_state.get('show_accessibility_docs', False):
+            help_system.render_accessibility_documentation()
         
         # Show onboarding checklist for new users
         help_system.render_onboarding_checklist()
