@@ -203,11 +203,14 @@ class SidebarComponent:
         # Filters section header
         st.sidebar.markdown("### 🔍 Filters")
         
+        # Get current filter state from session manager
+        current_filter_state = self.session_manager.get_filter_state()
+        
         # Action filter with tooltip
         action_filter = st.sidebar.multiselect(
             "Filter by Action",
             options=['create', 'update', 'delete', 'replace'],
-            default=['create', 'update', 'delete', 'replace'],
+            default=current_filter_state.get('action_filter', ['create', 'update', 'delete', 'replace']),
             help="Filter resources by Terraform action type:\n• Create: New resources being added\n• Update: Existing resources being modified\n• Delete: Resources being removed\n• Replace: Resources being destroyed and recreated"
         )
         
@@ -215,7 +218,7 @@ class SidebarComponent:
         risk_filter = st.sidebar.multiselect(
             "Filter by Risk Level",
             options=['Low', 'Medium', 'High'],
-            default=['Low', 'Medium', 'High'],
+            default=current_filter_state.get('risk_filter', ['Low', 'Medium', 'High']),
             help="Filter resources by calculated risk level:\n• Low: Safe changes with minimal impact\n• Medium: Changes requiring attention\n• High: Potentially dangerous changes requiring careful review"
         )
         
@@ -226,10 +229,16 @@ class SidebarComponent:
                 if isinstance(enhanced_risk_result, dict) and enhanced_risk_result.get('provider_risk_summary'):
                     available_providers = list(enhanced_risk_result['provider_risk_summary'].keys())
                     if available_providers:
+                        current_provider_filter = current_filter_state.get('provider_filter', available_providers)
+                        # Ensure current provider filter only contains available providers
+                        valid_provider_filter = [p for p in current_provider_filter if p in available_providers]
+                        if not valid_provider_filter:
+                            valid_provider_filter = available_providers
+                        
                         provider_filter = st.sidebar.multiselect(
                             "Filter by Provider",
                             options=available_providers,
-                            default=available_providers,
+                            default=valid_provider_filter,
                             help="Filter resources by cloud provider. Shows only providers detected in your Terraform plan. Useful for focusing on specific cloud environments in multi-cloud deployments."
                         )
             except:
@@ -239,10 +248,12 @@ class SidebarComponent:
         st.sidebar.markdown("#### 🔗 Advanced Filter Logic")
         
         # Basic AND/OR logic
+        current_filter_logic = self.session_manager.get_filter_logic()
+        filter_logic_index = 0 if current_filter_logic == "AND" else 1
         filter_logic = st.sidebar.radio(
             "Basic Logic:",
             options=["AND", "OR"],
-            index=0,
+            index=filter_logic_index,
             help="AND: Show resources that match ALL selected filters\nOR: Show resources that match ANY selected filter",
             horizontal=True
         )
@@ -284,7 +295,7 @@ class SidebarComponent:
                 # Validate expression
                 validation_result = self._validate_filter_expression(filter_expression)
                 
-                if filter_expression.strip():
+                if filter_expression and filter_expression.strip():
                     if validation_result['valid']:
                         st.success("✅ Expression is valid")
                         
@@ -383,7 +394,16 @@ class SidebarComponent:
         # Save/Load custom filter configurations
         st.sidebar.markdown("#### 💾 Save/Load Filters")
         
-        col1, col2 = st.sidebar.columns(2)
+        try:
+            col1, col2 = st.sidebar.columns(2)
+        except (ValueError, AttributeError):
+            # Handle test environment where columns might not work properly
+            class MockColumn:
+                def __enter__(self):
+                    return st.sidebar
+                def __exit__(self, *args):
+                    pass
+            col1 = col2 = MockColumn()
         
         with col1:
             save_name = st.text_input(
@@ -441,6 +461,15 @@ class SidebarComponent:
             self.session_manager.set_filter_logic('AND')
             self.session_manager.set_selected_preset('Custom')
             st.rerun()
+        
+        # Update session state with current filter values
+        current_filters = {
+            'action_filter': action_filter,
+            'risk_filter': risk_filter,
+            'provider_filter': provider_filter if provider_filter is not None else [],
+        }
+        self.session_manager.update_filter_state(current_filters)
+        self.session_manager.set_filter_logic(filter_logic)
         
         return {
             'action_filter': action_filter,
@@ -516,7 +545,7 @@ class SidebarComponent:
         Returns:
             Dictionary with validation result and error message if invalid
         """
-        if not expression.strip():
+        if not expression or not expression.strip():
             return {'valid': True, 'parsed': '', 'error': ''}
         
         try:

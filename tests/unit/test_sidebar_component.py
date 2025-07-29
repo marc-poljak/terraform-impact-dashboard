@@ -203,6 +203,16 @@ class TestSidebarComponent:
         
         # Mock session manager methods that return lists
         self.sidebar_component.session_manager.get_saved_filter_configurations = Mock(return_value=[])
+        self.sidebar_component.session_manager.get_filter_state = Mock(return_value={
+            'action_filter': ['create', 'update', 'delete'],
+            'risk_filter': ['Low', 'Medium', 'High'],
+            'provider_filter': ['aws', 'azure']
+        })
+        self.sidebar_component.session_manager.get_filter_logic = Mock(return_value='AND')
+        self.sidebar_component.session_manager.update_filter_state = Mock()
+        self.sidebar_component.session_manager.set_filter_logic = Mock()
+        self.sidebar_component.session_manager.get_session_value = Mock(return_value='')
+        self.sidebar_component.session_manager.set_session_value = Mock()
         
         # Mock enhanced risk result with provider data
         enhanced_risk_result = {

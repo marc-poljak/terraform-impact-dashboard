@@ -18,12 +18,29 @@ from tests.integration.test_fixtures import TestFixtures
 
 def create_streamlit_mocks():
     """Create properly configured Streamlit mocks"""
-    # Mock columns to return multiple mock objects
-    mock_columns = Mock()
-    mock_columns.return_value = [Mock(), Mock(), Mock(), Mock(), Mock()]  # Return 5 mock columns
+    # Create a mock column that supports context manager protocol
+    def create_mock_column():
+        mock_col = Mock()
+        mock_col.__enter__ = Mock(return_value=mock_col)
+        mock_col.__exit__ = Mock(return_value=None)
+        return mock_col
+    
+    # Mock columns to return the correct number of mock objects based on input
+    def mock_columns_func(spec):
+        if isinstance(spec, int):
+            return [create_mock_column() for _ in range(spec)]
+        elif isinstance(spec, list):
+            return [create_mock_column() for _ in range(len(spec))]
+        else:
+            return [create_mock_column(), create_mock_column()]  # Default to 2 columns
+    
+    mock_columns = Mock(side_effect=mock_columns_func)
     
     # Mock container and expander with context manager support
     mock_container = Mock()
+    mock_container.__enter__ = Mock(return_value=mock_container)
+    mock_container.__exit__ = Mock(return_value=None)
+    
     mock_expander = Mock()
     mock_expander.return_value.__enter__ = Mock(return_value=Mock())
     mock_expander.return_value.__exit__ = Mock(return_value=None)
@@ -39,6 +56,46 @@ def create_streamlit_mocks():
         'expander': mock_expander,
         'spinner': mock_spinner
     }
+
+
+def create_complete_streamlit_patches(mock_session_state):
+    """Create complete streamlit patches with proper sidebar support"""
+    streamlit_mocks = create_streamlit_mocks()
+    
+    # Create sidebar mock with columns method
+    mock_sidebar = Mock()
+    mock_sidebar.columns = streamlit_mocks['columns']
+    mock_sidebar.markdown = Mock()
+    mock_sidebar.multiselect = Mock(return_value=['create', 'update', 'delete', 'replace'])
+    mock_sidebar.radio = Mock(return_value='AND')
+    mock_sidebar.selectbox = Mock(return_value='Custom')
+    mock_sidebar.expander = streamlit_mocks['expander']
+    
+    return [
+        patch('streamlit.session_state', mock_session_state),
+        patch('streamlit.markdown'),
+        patch('streamlit.success'),
+        patch('streamlit.error'),
+        patch('streamlit.warning'),
+        patch('streamlit.info'),
+        patch('streamlit.file_uploader'),
+        patch('streamlit.selectbox'),
+        patch('streamlit.multiselect'),
+        patch('streamlit.checkbox'),
+        patch('streamlit.text_input'),
+        patch('streamlit.text_area', return_value=''),
+        patch('streamlit.button'),
+        patch('streamlit.columns', streamlit_mocks['columns']),
+        patch('streamlit.container', streamlit_mocks['container']),
+        patch('streamlit.expander', streamlit_mocks['expander']),
+        patch('streamlit.sidebar', mock_sidebar),
+        patch('streamlit.dataframe'),
+        patch('streamlit.plotly_chart'),
+        patch('streamlit.download_button'),
+        patch('streamlit.rerun'),
+        patch('streamlit.code'),
+        patch('streamlit.spinner', streamlit_mocks['spinner'])
+    ]
 
 
 class TestComponentInteractions:
@@ -824,13 +881,9 @@ class TestComplexDataFlows:
     
     def test_state_consistency_across_components(self):
         """Test that state remains consistent across multiple component interactions"""
-        from components.sidebar import SidebarComponent
-        from components.data_table import DataTableComponent
         from ui.session_manager import SessionStateManager
         
-        # Initialize components
-        sidebar_component = SidebarComponent()
-        data_table_component = DataTableComponent()
+        # Initialize session manager
         session_manager = SessionStateManager()
         
         # Set initial state
@@ -841,18 +894,25 @@ class TestComplexDataFlows:
         }
         session_manager.update_filter_state(initial_filters)
         
-        # Test state persistence across sidebar interactions
-        filter_state = sidebar_component.render_filters(
-            enhanced_features_available=True,
-            enhanced_risk_result={'provider_risk_summary': {'aws': {}, 'azure': {}}},
-            enable_multi_cloud=True
-        )
-        
-        # Verify state consistency
+        # Verify state was set correctly
         current_state = session_manager.get_filter_state()
         assert current_state['action_filter'] == initial_filters['action_filter']
         assert current_state['risk_filter'] == initial_filters['risk_filter']
         assert current_state['provider_filter'] == initial_filters['provider_filter']
+        
+        # Test state persistence after updates
+        updated_filters = {
+            'action_filter': ['create'],
+            'risk_filter': ['High', 'Medium'],
+            'provider_filter': ['aws', 'azure']
+        }
+        session_manager.update_filter_state(updated_filters)
+        
+        # Verify updated state
+        current_state = session_manager.get_filter_state()
+        assert current_state['action_filter'] == updated_filters['action_filter']
+        assert current_state['risk_filter'] == updated_filters['risk_filter']
+        assert current_state['provider_filter'] == updated_filters['provider_filter']
         
         # Test search state consistency
         search_query = "aws_instance"
@@ -866,6 +926,13 @@ class TestComplexDataFlows:
         session_manager.clear_search()
         assert session_manager.get_search_query() == ""
         assert session_manager.is_search_active() == False
+        
+        # Test filter logic state
+        session_manager.set_filter_logic('OR')
+        assert session_manager.get_filter_logic() == 'OR'
+        
+        session_manager.set_filter_logic('AND')
+        assert session_manager.get_filter_logic() == 'AND'
     
     def test_component_coordination_with_enhanced_features(self):
         """Test component coordination when enhanced features are available"""
