@@ -7,6 +7,7 @@ extracted from the main app.py file.
 
 import streamlit as st
 from ui.session_manager import SessionStateManager
+from ui.error_handler import ErrorHandler
 
 
 class SidebarComponent:
@@ -28,7 +29,6 @@ class SidebarComponent:
         Returns:
             dict: Dictionary containing the current state of sidebar controls
         """
-        from ui.error_handler import ErrorHandler
         error_handler = ErrorHandler()
         
         # Sidebar title and header

@@ -73,7 +73,17 @@ class TestUploadComponent:
         mock_file.getvalue.return_value = b'{"test": "data"}'
         
         mock_file_uploader.return_value = mock_file
-        mock_columns.return_value = [Mock(), Mock(), Mock()]
+        # Mock columns to support context manager protocol
+        mock_col1 = Mock()
+        mock_col1.__enter__ = Mock(return_value=mock_col1)
+        mock_col1.__exit__ = Mock(return_value=None)
+        mock_col2 = Mock()
+        mock_col2.__enter__ = Mock(return_value=mock_col2)
+        mock_col2.__exit__ = Mock(return_value=None)
+        mock_col3 = Mock()
+        mock_col3.__enter__ = Mock(return_value=mock_col3)
+        mock_col3.__exit__ = Mock(return_value=None)
+        mock_columns.return_value = [mock_col1, mock_col2, mock_col3]
         
         result = self.upload_component.render()
         
@@ -114,12 +124,20 @@ class TestUploadComponent:
         """Test validate_and_parse_file with valid JSON data"""
         # Mock the error handler
         mock_error_handler.return_value = Mock()
-        mock_columns.return_value = [Mock(), Mock()]
+        # Mock columns to support context manager protocol
+        mock_col1 = Mock()
+        mock_col1.__enter__ = Mock(return_value=mock_col1)
+        mock_col1.__exit__ = Mock(return_value=None)
+        mock_col2 = Mock()
+        mock_col2.__enter__ = Mock(return_value=mock_col2)
+        mock_col2.__exit__ = Mock(return_value=None)
+        mock_columns.return_value = [mock_col1, mock_col2]
         mock_expander.return_value.__enter__ = Mock()
         mock_expander.return_value.__exit__ = Mock()
         
-        # Create a mock file with valid Terraform plan JSON
+        # Create a mock file with valid Terraform plan JSON and proper getvalue method
         mock_file = Mock()
+        mock_file.getvalue.return_value = b'{"terraform_version": "1.0.0"}'
         valid_plan_data = {
             "terraform_version": "1.0.0",
             "format_version": "1.0",
@@ -148,8 +166,9 @@ class TestUploadComponent:
         mock_error_handler_instance = Mock()
         mock_error_handler.return_value = mock_error_handler_instance
         
-        # Create a mock file
+        # Create a mock file with proper getvalue method
         mock_file = Mock()
+        mock_file.getvalue.return_value = b'{"invalid": json}'
         
         # Mock json.load to raise JSONDecodeError
         with patch('json.load', side_effect=json.JSONDecodeError("Invalid JSON", "doc", 0)):
@@ -288,8 +307,9 @@ class TestUploadComponent:
         mock_error_handler_instance = Mock()
         mock_error_handler.return_value = mock_error_handler_instance
         
-        # Create a mock file
+        # Create a mock file with proper getvalue method
         mock_file = Mock()
+        mock_file.getvalue.return_value = b'{"test": "data"}'
         
         # Mock json.load to raise a generic exception
         with patch('json.load', side_effect=Exception("Unexpected error")):

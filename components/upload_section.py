@@ -8,6 +8,7 @@ upload styling with dashed border and help text.
 import streamlit as st
 import json
 from typing import Optional, Dict, Any, Tuple, List
+from ui.error_handler import ErrorHandler
 
 
 class UploadComponent:
@@ -25,7 +26,6 @@ class UploadComponent:
             Optional[Dict[str, Any]]: The uploaded plan data as a dictionary,
                                     or None if no file is uploaded
         """
-        from ui.error_handler import ErrorHandler
         error_handler = ErrorHandler()
         
         # File upload section with preserved styling
@@ -157,7 +157,6 @@ class UploadComponent:
             Tuple[Optional[Dict[str, Any]], Optional[str]]: 
                 (parsed_data, error_message) - parsed_data is None if error occurred
         """
-        from ui.error_handler import ErrorHandler
         error_handler = ErrorHandler(debug_mode=show_debug)
         
         try:

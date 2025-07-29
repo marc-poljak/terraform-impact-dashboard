@@ -61,157 +61,170 @@ class TestSessionStateManager:
     
     def test_get_filter_state(self):
         """Test get_filter_state method"""
-        # Set some test values
-        self.mock_session_state['action_filter'] = ['create', 'update']
-        self.mock_session_state['risk_filter'] = ['High']
-        self.mock_session_state['provider_filter'] = ['aws']
-        
-        result = self.session_manager.get_filter_state()
-        
-        assert isinstance(result, dict)
-        assert result['action_filter'] == ['create', 'update']
-        assert result['risk_filter'] == ['High']
-        assert result['provider_filter'] == ['aws']
+        # Set some test values after initialization
+        with patch('streamlit.session_state', self.mock_session_state):
+            self.mock_session_state['action_filter'] = ['create', 'update']
+            self.mock_session_state['risk_filter'] = ['High']
+            self.mock_session_state['provider_filter'] = ['aws']
+            
+            result = self.session_manager.get_filter_state()
+            
+            assert isinstance(result, dict)
+            assert result['action_filter'] == ['create', 'update']
+            assert result['risk_filter'] == ['High']
+            assert result['provider_filter'] == ['aws']
     
     def test_update_filter_state(self):
         """Test update_filter_state method"""
-        new_filters = {
-            'action_filter': ['delete'],
-            'risk_filter': ['Low', 'Medium'],
-            'provider_filter': ['azure', 'gcp']
-        }
-        
-        self.session_manager.update_filter_state(new_filters)
-        
-        assert self.mock_session_state['action_filter'] == ['delete']
-        assert self.mock_session_state['risk_filter'] == ['Low', 'Medium']
-        assert self.mock_session_state['provider_filter'] == ['azure', 'gcp']
+        with patch('streamlit.session_state', self.mock_session_state):
+            new_filters = {
+                'action_filter': ['delete'],
+                'risk_filter': ['Low', 'Medium'],
+                'provider_filter': ['azure', 'gcp']
+            }
+            
+            self.session_manager.update_filter_state(new_filters)
+            
+            assert self.mock_session_state['action_filter'] == ['delete']
+            assert self.mock_session_state['risk_filter'] == ['Low', 'Medium']
+            assert self.mock_session_state['provider_filter'] == ['azure', 'gcp']
     
     def test_get_debug_state(self):
         """Test get_debug_state method"""
-        # Test default value
-        result = self.session_manager.get_debug_state()
-        assert result == False
-        
-        # Test with set value
-        self.mock_session_state['show_debug'] = True
-        result = self.session_manager.get_debug_state()
-        assert result == True
+        with patch('streamlit.session_state', self.mock_session_state):
+            # Test default value
+            result = self.session_manager.get_debug_state()
+            assert result == False
+            
+            # Test with set value
+            self.mock_session_state['show_debug'] = True
+            result = self.session_manager.get_debug_state()
+            assert result == True
     
     def test_set_debug_state(self):
         """Test set_debug_state method"""
-        self.session_manager.set_debug_state(True)
-        assert self.mock_session_state['show_debug'] == True
-        
-        self.session_manager.set_debug_state(False)
-        assert self.mock_session_state['show_debug'] == False
+        with patch('streamlit.session_state', self.mock_session_state):
+            self.session_manager.set_debug_state(True)
+            assert self.mock_session_state['show_debug'] == True
+            
+            self.session_manager.set_debug_state(False)
+            assert self.mock_session_state['show_debug'] == False
     
     def test_get_multi_cloud_state(self):
         """Test get_multi_cloud_state method"""
-        # Test default value
-        result = self.session_manager.get_multi_cloud_state()
-        assert result == True
-        
-        # Test with set value
-        self.mock_session_state['enable_multi_cloud'] = False
-        result = self.session_manager.get_multi_cloud_state()
-        assert result == False
+        with patch('streamlit.session_state', self.mock_session_state):
+            # Test default value
+            result = self.session_manager.get_multi_cloud_state()
+            assert result == True
+            
+            # Test with set value
+            self.mock_session_state['enable_multi_cloud'] = False
+            result = self.session_manager.get_multi_cloud_state()
+            assert result == False
     
     def test_set_multi_cloud_state(self):
         """Test set_multi_cloud_state method"""
-        self.session_manager.set_multi_cloud_state(False)
-        assert self.mock_session_state['enable_multi_cloud'] == False
-        
-        self.session_manager.set_multi_cloud_state(True)
-        assert self.mock_session_state['enable_multi_cloud'] == True
+        with patch('streamlit.session_state', self.mock_session_state):
+            self.session_manager.set_multi_cloud_state(False)
+            assert self.mock_session_state['enable_multi_cloud'] == False
+            
+            self.session_manager.set_multi_cloud_state(True)
+            assert self.mock_session_state['enable_multi_cloud'] == True
     
     def test_get_session_value(self):
         """Test get_session_value method"""
-        # Test with existing key
-        self.mock_session_state['test_key'] = 'test_value'
-        result = self.session_manager.get_session_value('test_key')
-        assert result == 'test_value'
-        
-        # Test with non-existing key and default
-        result = self.session_manager.get_session_value('non_existing', 'default')
-        assert result == 'default'
-        
-        # Test with non-existing key and no default
-        result = self.session_manager.get_session_value('non_existing')
-        assert result is None
+        with patch('streamlit.session_state', self.mock_session_state):
+            # Test with existing key
+            self.mock_session_state['test_key'] = 'test_value'
+            result = self.session_manager.get_session_value('test_key')
+            assert result == 'test_value'
+            
+            # Test with non-existing key and default
+            result = self.session_manager.get_session_value('non_existing', 'default')
+            assert result == 'default'
+            
+            # Test with non-existing key and no default
+            result = self.session_manager.get_session_value('non_existing')
+            assert result is None
     
     def test_set_session_value(self):
         """Test set_session_value method"""
-        self.session_manager.set_session_value('test_key', 'test_value')
-        assert self.mock_session_state['test_key'] == 'test_value'
+        with patch('streamlit.session_state', self.mock_session_state):
+            self.session_manager.set_session_value('test_key', 'test_value')
+            assert self.mock_session_state['test_key'] == 'test_value'
     
     def test_has_session_key(self):
         """Test has_session_key method"""
-        # Test with existing key
-        self.mock_session_state['existing_key'] = 'value'
-        assert self.session_manager.has_session_key('existing_key') == True
-        
-        # Test with non-existing key
-        assert self.session_manager.has_session_key('non_existing_key') == False
+        with patch('streamlit.session_state', self.mock_session_state):
+            # Test with existing key
+            self.mock_session_state['existing_key'] = 'value'
+            assert self.session_manager.has_session_key('existing_key') == True
+            
+            # Test with non-existing key
+            assert self.session_manager.has_session_key('non_existing_key') == False
     
     def test_remove_session_key(self):
         """Test remove_session_key method"""
-        # Add a key
-        self.mock_session_state['key_to_remove'] = 'value'
-        assert 'key_to_remove' in self.mock_session_state
-        
-        # Remove the key
-        self.session_manager.remove_session_key('key_to_remove')
-        assert 'key_to_remove' not in self.mock_session_state
-        
-        # Test removing non-existing key (should not raise error)
-        self.session_manager.remove_session_key('non_existing_key')
+        with patch('streamlit.session_state', self.mock_session_state):
+            # Add a key
+            self.mock_session_state['key_to_remove'] = 'value'
+            assert 'key_to_remove' in self.mock_session_state
+            
+            # Remove the key
+            self.session_manager.remove_session_key('key_to_remove')
+            assert 'key_to_remove' not in self.mock_session_state
+            
+            # Test removing non-existing key (should not raise error)
+            self.session_manager.remove_session_key('non_existing_key')
     
     def test_reset_filters_to_default(self):
         """Test reset_filters_to_default method"""
-        # Set some non-default values
-        self.mock_session_state['action_filter'] = ['create']
-        self.mock_session_state['risk_filter'] = ['High']
-        self.mock_session_state['provider_filter'] = ['aws']
-        
-        # Reset to defaults
-        self.session_manager.reset_filters_to_default()
-        
-        # Verify defaults are restored
-        assert self.mock_session_state['action_filter'] == ['create', 'update', 'delete', 'replace']
-        assert self.mock_session_state['risk_filter'] == ['Low', 'Medium', 'High']
-        assert self.mock_session_state['provider_filter'] == []
+        with patch('streamlit.session_state', self.mock_session_state):
+            # Set some non-default values
+            self.mock_session_state['action_filter'] = ['create']
+            self.mock_session_state['risk_filter'] = ['High']
+            self.mock_session_state['provider_filter'] = ['aws']
+            
+            # Reset to defaults
+            self.session_manager.reset_filters_to_default()
+            
+            # Verify defaults are restored
+            assert self.mock_session_state['action_filter'] == ['create', 'update', 'delete', 'replace']
+            assert self.mock_session_state['risk_filter'] == ['Low', 'Medium', 'High']
+            assert self.mock_session_state['provider_filter'] == []
     
     def test_get_filter_summary(self):
         """Test get_filter_summary method"""
-        # Set some filter values
-        self.mock_session_state['action_filter'] = ['create', 'update']
-        self.mock_session_state['risk_filter'] = ['High']
-        self.mock_session_state['provider_filter'] = ['aws']
-        
-        result = self.session_manager.get_filter_summary()
-        
-        assert isinstance(result, dict)
-        assert result['total_action_filters'] == 2
-        assert result['total_risk_filters'] == 1
-        assert result['total_provider_filters'] == 1
-        assert result['has_active_filters'] == True
+        with patch('streamlit.session_state', self.mock_session_state):
+            # Set some filter values
+            self.mock_session_state['action_filter'] = ['create', 'update']
+            self.mock_session_state['risk_filter'] = ['High']
+            self.mock_session_state['provider_filter'] = ['aws']
+            
+            result = self.session_manager.get_filter_summary()
+            
+            assert isinstance(result, dict)
+            assert result['total_action_filters'] == 2
+            assert result['total_risk_filters'] == 1
+            assert result['total_provider_filters'] == 1
+            assert result['has_active_filters'] == True
     
     def test_is_filter_active(self):
         """Test is_filter_active method"""
-        # Test with default filters (should not be active)
-        assert self.session_manager.is_filter_active('action') == False
-        assert self.session_manager.is_filter_active('risk') == False
-        assert self.session_manager.is_filter_active('provider') == False
-        
-        # Set some active filters
-        self.mock_session_state['action_filter'] = ['create']  # Less than 4
-        self.mock_session_state['risk_filter'] = ['High']      # Less than 3
-        self.mock_session_state['provider_filter'] = ['aws']   # More than 0
-        
-        assert self.session_manager.is_filter_active('action') == True
-        assert self.session_manager.is_filter_active('risk') == True
-        assert self.session_manager.is_filter_active('provider') == True
+        with patch('streamlit.session_state', self.mock_session_state):
+            # Test with default filters (should not be active)
+            assert self.session_manager.is_filter_active('action') == False
+            assert self.session_manager.is_filter_active('risk') == False
+            assert self.session_manager.is_filter_active('provider') == False
+            
+            # Set some active filters
+            self.mock_session_state['action_filter'] = ['create']  # Less than 4
+            self.mock_session_state['risk_filter'] = ['High']      # Less than 3
+            self.mock_session_state['provider_filter'] = ['aws']   # More than 0
+            
+            assert self.session_manager.is_filter_active('action') == True
+            assert self.session_manager.is_filter_active('risk') == True
+            assert self.session_manager.is_filter_active('provider') == True
     
     def test_search_functionality(self):
         """Test search-related methods"""
@@ -286,29 +299,30 @@ class TestSessionStateManager:
     
     def test_saved_filter_configurations(self):
         """Test saved filter configuration methods"""
-        # Test initial state
-        configs = self.session_manager.get_saved_filter_configurations()
-        assert isinstance(configs, list)
-        assert len(configs) == 0
-        
-        # Save a configuration
-        self.mock_session_state['action_filter'] = ['create']
-        success = self.session_manager.save_current_filter_configuration('test_config')
-        assert success == True
-        
-        # Verify configuration was saved
-        configs = self.session_manager.get_saved_filter_configurations()
-        assert 'test_config' in configs
-        
-        # Restore configuration
-        self.mock_session_state['action_filter'] = ['delete']  # Change current state
-        success = self.session_manager.restore_saved_filter_configuration('test_config')
-        assert success == True
-        assert self.mock_session_state['action_filter'] == ['create']  # Should be restored
-        
-        # Test restoring non-existing configuration
-        success = self.session_manager.restore_saved_filter_configuration('non_existing')
-        assert success == False
+        with patch('streamlit.session_state', self.mock_session_state):
+            # Test initial state
+            configs = self.session_manager.get_saved_filter_configurations()
+            assert isinstance(configs, list)
+            assert len(configs) == 0
+            
+            # Save a configuration
+            self.mock_session_state['action_filter'] = ['create']
+            success = self.session_manager.save_current_filter_configuration('test_config')
+            assert success == True
+            
+            # Verify configuration was saved
+            configs = self.session_manager.get_saved_filter_configurations()
+            assert 'test_config' in configs
+            
+            # Restore configuration
+            self.mock_session_state['action_filter'] = ['delete']  # Change current state
+            success = self.session_manager.restore_saved_filter_configuration('test_config')
+            assert success == True
+            assert self.mock_session_state['action_filter'] == ['create']  # Should be restored
+            
+            # Test restoring non-existing configuration
+            success = self.session_manager.restore_saved_filter_configuration('non_existing')
+            assert success == False
     
     def test_advanced_filter_settings(self):
         """Test advanced filter settings methods"""

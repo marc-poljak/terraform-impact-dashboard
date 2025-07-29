@@ -23,80 +23,80 @@ class SessionStateManager:
         Preserves existing session state structure and behavior.
         """
         # Debug and feature toggles
-        if 'show_debug' not in st.session_state:
+        if not hasattr(st.session_state, 'show_debug'):
             st.session_state.show_debug = False
             
-        if 'enable_multi_cloud' not in st.session_state:
+        if not hasattr(st.session_state, 'enable_multi_cloud'):
             st.session_state.enable_multi_cloud = True
             
         # Filter states - preserve existing multiselect default values
-        if 'action_filter' not in st.session_state:
+        if not hasattr(st.session_state, 'action_filter'):
             st.session_state.action_filter = ['create', 'update', 'delete', 'replace']
             
-        if 'risk_filter' not in st.session_state:
+        if not hasattr(st.session_state, 'risk_filter'):
             st.session_state.risk_filter = ['Low', 'Medium', 'High']
             
-        if 'provider_filter' not in st.session_state:
+        if not hasattr(st.session_state, 'provider_filter'):
             st.session_state.provider_filter = []
             
         # Search state
-        if 'search_query' not in st.session_state:
+        if not hasattr(st.session_state, 'search_query'):
             st.session_state.search_query = ""
             
-        if 'search_results_count' not in st.session_state:
+        if not hasattr(st.session_state, 'search_results_count'):
             st.session_state.search_results_count = 0
             
-        if 'search_result_indices' not in st.session_state:
+        if not hasattr(st.session_state, 'search_result_indices'):
             st.session_state.search_result_indices = []
             
-        if 'current_search_result_index' not in st.session_state:
+        if not hasattr(st.session_state, 'current_search_result_index'):
             st.session_state.current_search_result_index = 0
             
         # Filter logic and presets
-        if 'filter_logic' not in st.session_state:
+        if not hasattr(st.session_state, 'filter_logic'):
             st.session_state.filter_logic = 'AND'
             
-        if 'selected_preset' not in st.session_state:
+        if not hasattr(st.session_state, 'selected_preset'):
             st.session_state.selected_preset = 'Custom'
             
         # Advanced filter settings
-        if 'use_advanced_filters' not in st.session_state:
+        if not hasattr(st.session_state, 'use_advanced_filters'):
             st.session_state.use_advanced_filters = False
             
-        if 'filter_expression' not in st.session_state:
+        if not hasattr(st.session_state, 'filter_expression'):
             st.session_state.filter_expression = ''
             
         # Saved filter configurations
-        if 'saved_filter_configs' not in st.session_state:
+        if not hasattr(st.session_state, 'saved_filter_configs'):
             st.session_state.saved_filter_configs = {}
             
         # File processing state
-        if 'uploaded_file_processed' not in st.session_state:
+        if not hasattr(st.session_state, 'uploaded_file_processed'):
             st.session_state.uploaded_file_processed = False
             
-        if 'plan_data' not in st.session_state:
+        if not hasattr(st.session_state, 'plan_data'):
             st.session_state.plan_data = None
             
-        if 'parser' not in st.session_state:
+        if not hasattr(st.session_state, 'parser'):
             st.session_state.parser = None
             
         # Processing results cache
-        if 'summary' not in st.session_state:
+        if not hasattr(st.session_state, 'summary'):
             st.session_state.summary = None
             
-        if 'resource_changes' not in st.session_state:
+        if not hasattr(st.session_state, 'resource_changes'):
             st.session_state.resource_changes = None
             
-        if 'resource_types' not in st.session_state:
+        if not hasattr(st.session_state, 'resource_types'):
             st.session_state.resource_types = None
             
-        if 'risk_summary' not in st.session_state:
+        if not hasattr(st.session_state, 'risk_summary'):
             st.session_state.risk_summary = None
             
-        if 'enhanced_risk_result' not in st.session_state:
+        if not hasattr(st.session_state, 'enhanced_risk_result'):
             st.session_state.enhanced_risk_result = None
             
-        if 'enhanced_risk_assessor' not in st.session_state:
+        if not hasattr(st.session_state, 'enhanced_risk_assessor'):
             st.session_state.enhanced_risk_assessor = None
     
     def get_filter_state(self) -> Dict[str, Any]:
@@ -107,9 +107,9 @@ class SessionStateManager:
             Dictionary containing current filter configurations
         """
         return {
-            'action_filter': st.session_state.get('action_filter', ['create', 'update', 'delete', 'replace']),
-            'risk_filter': st.session_state.get('risk_filter', ['Low', 'Medium', 'High']),
-            'provider_filter': st.session_state.get('provider_filter', [])
+            'action_filter': st.session_state.action_filter if hasattr(st.session_state, 'action_filter') else ['create', 'update', 'delete', 'replace'],
+            'risk_filter': st.session_state.risk_filter if hasattr(st.session_state, 'risk_filter') else ['Low', 'Medium', 'High'],
+            'provider_filter': st.session_state.provider_filter if hasattr(st.session_state, 'provider_filter') else []
         }
     
     def update_filter_state(self, filters: Dict[str, Any]) -> None:
@@ -130,7 +130,7 @@ class SessionStateManager:
         Returns:
             Current debug mode setting
         """
-        return st.session_state.get('show_debug', False)
+        return st.session_state.show_debug if hasattr(st.session_state, 'show_debug') else False
     
     def set_debug_state(self, enabled: bool) -> None:
         """
@@ -148,7 +148,7 @@ class SessionStateManager:
         Returns:
             Current multi-cloud features setting
         """
-        return st.session_state.get('enable_multi_cloud', True)
+        return st.session_state.enable_multi_cloud if hasattr(st.session_state, 'enable_multi_cloud') else True
     
     def set_multi_cloud_state(self, enabled: bool) -> None:
         """
@@ -218,7 +218,7 @@ class SessionStateManager:
         Returns:
             Value from session state or default
         """
-        return st.session_state.get(key, default)
+        return getattr(st.session_state, key, default) if hasattr(st.session_state, key) else default
     
     def set_session_value(self, key: str, value: Any) -> None:
         """
@@ -228,7 +228,7 @@ class SessionStateManager:
             key: Session state key
             value: Value to set
         """
-        st.session_state[key] = value
+        setattr(st.session_state, key, value)
     
     def has_session_key(self, key: str) -> bool:
         """
@@ -240,7 +240,7 @@ class SessionStateManager:
         Returns:
             True if key exists, False otherwise
         """
-        return key in st.session_state
+        return hasattr(st.session_state, key)
     
     def remove_session_key(self, key: str) -> None:
         """
@@ -249,8 +249,8 @@ class SessionStateManager:
         Args:
             key: Session state key to remove
         """
-        if key in st.session_state:
-            del st.session_state[key]
+        if hasattr(st.session_state, key):
+            delattr(st.session_state, key)
     
     # Filter state persistence methods
     

@@ -76,7 +76,9 @@ class TestSidebarComponent:
         result = self.sidebar_component.render(enhanced_features_available=True)
         
         # Verify enhanced features success message is shown
-        mock_sidebar.success.assert_called_with("✅ Enhanced Multi-Cloud Features Available")
+        # The component shows the initial message and then the multi-cloud enabled message
+        success_calls = [call[0][0] for call in mock_sidebar.success.call_args_list]
+        assert "✅ Enhanced Multi-Cloud Features Available" in success_calls
         
         # Verify result contains expected keys
         assert result['show_debug'] == False
@@ -95,12 +97,18 @@ class TestSidebarComponent:
         mock_sidebar.info = Mock()
         mock_sidebar.checkbox = Mock(return_value=False)
         mock_sidebar.button = Mock(return_value=False)
-        mock_sidebar.expander = Mock()
+        # Mock expander to support context manager protocol
+        mock_expander = Mock()
+        mock_expander.__enter__ = Mock(return_value=mock_expander)
+        mock_expander.__exit__ = Mock(return_value=None)
+        mock_sidebar.expander = Mock(return_value=mock_expander)
         
         result = self.sidebar_component.render(enhanced_features_available=False)
         
         # Verify basic features info message is shown
-        mock_sidebar.info.assert_called_with("ℹ️ Basic Features Available")
+        # The component shows the initial message and then the multi-cloud unavailable message
+        info_calls = [call[0][0] for call in mock_sidebar.info.call_args_list]
+        assert "ℹ️ Basic Features Available" in info_calls
         
         # Verify result contains expected keys
         assert 'show_debug' in result
@@ -122,9 +130,27 @@ class TestSidebarComponent:
         mock_sidebar.radio = Mock(return_value='AND')
         mock_sidebar.selectbox = Mock(return_value='Custom')
         mock_sidebar.text_input = Mock(return_value='')
-        mock_sidebar.columns = Mock(return_value=[Mock(), Mock()])
+        # Mock columns to support context manager protocol
+        mock_col1 = Mock()
+        mock_col1.__enter__ = Mock(return_value=mock_col1)
+        mock_col1.__exit__ = Mock(return_value=None)
+        mock_col2 = Mock()
+        mock_col2.__enter__ = Mock(return_value=mock_col2)
+        mock_col2.__exit__ = Mock(return_value=None)
+        mock_sidebar.columns = Mock(return_value=[mock_col1, mock_col2])
         mock_sidebar.button = Mock(return_value=False)
-        mock_sidebar.expander = Mock()
+        # Mock expander to support context manager protocol
+        mock_expander = Mock()
+        mock_expander.__enter__ = Mock(return_value=mock_expander)
+        mock_expander.__exit__ = Mock(return_value=None)
+        mock_sidebar.expander = Mock(return_value=mock_expander)
+        # Mock additional components needed for advanced filters
+        mock_sidebar.checkbox = Mock(return_value=False)
+        mock_sidebar.text_area = Mock(return_value='')
+        mock_sidebar.selectbox = Mock(return_value='Custom')
+        
+        # Mock session manager methods that return lists
+        self.sidebar_component.session_manager.get_saved_filter_configurations = Mock(return_value=[])
         
         # Test that render_filters method exists
         assert hasattr(self.sidebar_component, 'render_filters')
@@ -157,9 +183,26 @@ class TestSidebarComponent:
         mock_sidebar.radio = Mock(return_value='AND')
         mock_sidebar.selectbox = Mock(return_value='Custom')
         mock_sidebar.text_input = Mock(return_value='')
-        mock_sidebar.columns = Mock(return_value=[Mock(), Mock()])
+        # Mock columns to support context manager protocol
+        mock_col1 = Mock()
+        mock_col1.__enter__ = Mock(return_value=mock_col1)
+        mock_col1.__exit__ = Mock(return_value=None)
+        mock_col2 = Mock()
+        mock_col2.__enter__ = Mock(return_value=mock_col2)
+        mock_col2.__exit__ = Mock(return_value=None)
+        mock_sidebar.columns = Mock(return_value=[mock_col1, mock_col2])
         mock_sidebar.button = Mock(return_value=False)
-        mock_sidebar.expander = Mock()
+        # Mock expander to support context manager protocol
+        mock_expander = Mock()
+        mock_expander.__enter__ = Mock(return_value=mock_expander)
+        mock_expander.__exit__ = Mock(return_value=None)
+        mock_sidebar.expander = Mock(return_value=mock_expander)
+        # Mock additional components needed for advanced filters
+        mock_sidebar.checkbox = Mock(return_value=False)
+        mock_sidebar.text_area = Mock(return_value='')
+        
+        # Mock session manager methods that return lists
+        self.sidebar_component.session_manager.get_saved_filter_configurations = Mock(return_value=[])
         
         # Mock enhanced risk result with provider data
         enhanced_risk_result = {
@@ -277,7 +320,11 @@ class TestSidebarComponent:
         mock_sidebar.info = Mock()
         mock_sidebar.checkbox = Mock(return_value=False)
         mock_sidebar.button = Mock(return_value=False)
-        mock_sidebar.expander = Mock()
+        # Mock expander to support context manager protocol
+        mock_expander = Mock()
+        mock_expander.__enter__ = Mock(return_value=mock_expander)
+        mock_expander.__exit__ = Mock(return_value=None)
+        mock_sidebar.expander = Mock(return_value=mock_expander)
         
         # Make session manager raise an exception
         self.sidebar_component.session_manager = Mock()
