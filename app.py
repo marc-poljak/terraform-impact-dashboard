@@ -84,60 +84,6 @@ def render_debug_section(debug_info, resource_changes, summary, enhanced_feature
 
 
 
-def render_recommendations_section(summary, risk_summary, enhanced_risk_result, enhanced_risk_assessor, 
-                                 resource_changes, plan_data, enhanced_features_available, enable_multi_cloud):
-    """Render the recommendations and summary section"""
-    st.markdown("---")
-    st.markdown("### 📚 Summary & Recommendations")
-
-    if summary['total'] > 0:
-        # Extract risk level and score for display
-        if isinstance(risk_summary, dict) and 'overall_risk' in risk_summary:
-            risk_level = risk_summary['overall_risk'].get('level', 'Unknown')
-            risk_score = risk_summary['overall_risk'].get('score', 0)
-            estimated_time = risk_summary['overall_risk'].get('estimated_time', 'Unknown')
-        else:
-            risk_level = risk_summary.get('level', 'Unknown')
-            risk_score = risk_summary.get('score', 0)
-            estimated_time = risk_summary.get('estimated_time', 'Unknown')
-
-        # Generate recommendations
-        try:
-            if enhanced_features_available and enable_multi_cloud and enhanced_risk_assessor:
-                recommendations = enhanced_risk_assessor.generate_recommendations(resource_changes, plan_data)
-                if isinstance(enhanced_risk_result, dict) and enhanced_risk_result.get('provider_risk_summary'):
-                    provider_count = len(enhanced_risk_result['provider_risk_summary'])
-                    is_multi_cloud = enhanced_risk_result.get('is_multi_cloud', False)
-                else:
-                    provider_count = 1
-                    is_multi_cloud = False
-            else:
-                from utils.risk_assessment import RiskAssessment
-                basic_assessor = RiskAssessment()
-                recommendations = basic_assessor.generate_recommendations(resource_changes)
-                provider_count = 1
-                is_multi_cloud = False
-        except Exception as e:
-            recommendations = [f"Error generating recommendations: {e}"]
-            provider_count = 1
-            is_multi_cloud = False
-
-        st.info(f"""
-        **Plan Summary:**
-        - Total changes: {summary['total']} resources
-        - Risk level: {risk_level} ({risk_score}/100)
-        - Estimated deployment time: {estimated_time}
-        - Cloud providers: {provider_count}
-        - Multi-cloud: {'Yes' if is_multi_cloud else 'No'}
-        """)
-
-        if recommendations:
-            st.markdown("**🎯 Recommendations:**")
-            for rec in recommendations:
-                st.write(f"- {rec}")
-    else:
-        st.success("✅ No changes required - your infrastructure is up to date!")
-
 
 def process_plan_data(uploaded_file, upload_component, error_handler, show_debug, enable_multi_cloud):
     """
@@ -420,7 +366,7 @@ def main():
         )
 
         # Footer with Enhanced Recommendations
-        render_recommendations_section(
+        summary_cards.render_recommendations_section(
             summary, risk_summary, enhanced_risk_result, enhanced_risk_assessor, 
             resource_changes, plan_data, ENHANCED_FEATURES_AVAILABLE, enable_multi_cloud
         )
