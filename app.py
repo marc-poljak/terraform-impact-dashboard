@@ -48,37 +48,7 @@ st.set_page_config(
 )
 
 
-def render_debug_section(debug_info, resource_changes, summary, enhanced_features_available, enable_multi_cloud):
-    """Render debug information section"""
-    st.markdown("## 🔍 Debug Information")
-    st.markdown('<div class="debug-info">', unsafe_allow_html=True)
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("**📊 Parsing Details:**")
-        st.write(f"Total resource_changes in JSON: {debug_info.get('total_resource_changes', 'Unknown')}")
-        st.write(f"Filtered resource_changes: {len(resource_changes)}")
-        st.write(f"Summary total: {summary['total']}")
-        st.write(f"Enhanced features: {'Available' if enhanced_features_available else 'Unavailable'}")
-        if enhanced_features_available:
-            st.write(f"Multi-cloud enabled: {'Yes' if enable_multi_cloud else 'No'}")
-            st.write(f"Detected providers: {debug_info.get('detected_providers', {})}")
-
-    with col2:
-        st.markdown("**🎯 Action Patterns:**")
-        action_patterns = debug_info.get('action_patterns', {})
-        for pattern, count in action_patterns.items():
-            st.write(f"`{pattern}`: {count} resources")
-
-    st.markdown("**📁 Plan Structure:**")
-    st.write(f"Has planned_values: {debug_info.get('has_planned_values', False)}")
-    st.write(f"Has configuration: {debug_info.get('has_configuration', False)}")
-    st.write(f"Has prior_state: {debug_info.get('has_prior_state', False)}")
-    st.write(f"Plan keys: {', '.join(debug_info.get('plan_keys', []))}")
-
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown("---")
 
 
 
@@ -300,7 +270,7 @@ def main():
 
         # Debug Information Section
         if show_debug:
-            render_debug_section(debug_info, resource_changes, summary, ENHANCED_FEATURES_AVAILABLE, enable_multi_cloud)
+            enhanced_sections.render_debug_section(debug_info, resource_changes, summary, ENHANCED_FEATURES_AVAILABLE, enable_multi_cloud)
 
         # Summary Cards Section using component
         summary_cards.render(summary, risk_summary, resource_types, plan_data, debug_info)
