@@ -82,34 +82,63 @@ The dashboard will open in your browser at `http://localhost:8501`
 terraform-impact-dashboard/
 ├── app.py                           # Main Streamlit application
 ├── requirements.txt                 # Python dependencies
+├── Pipfile                         # Pipenv dependency management
+├── Pipfile.lock                    # Locked dependency versions
 ├── README.md                       # This documentation
 ├── components/                     # UI Components
+│   ├── __init__.py                 # Component module initialization
+│   ├── base_component.py           # Base component class
 │   ├── header.py                   # Header and navigation
 │   ├── sidebar.py                  # Sidebar controls
 │   ├── upload_section.py           # File upload interface
 │   ├── summary_cards.py            # Summary metrics display
 │   ├── visualizations.py           # Chart components
 │   ├── data_table.py              # Interactive data table
+│   ├── enhanced_sections.py        # Enhanced feature sections
 │   ├── help_system.py             # Comprehensive help system
 │   ├── report_generator.py        # PDF/HTML report generation
 │   ├── security_analysis.py       # Security-focused analysis
 │   └── onboarding_checklist.py    # User onboarding
 ├── parsers/
+│   ├── __init__.py                 # Parser module initialization
 │   └── plan_parser.py             # Terraform JSON parsing
 ├── visualizers/
+│   ├── __init__.py                 # Visualizer module initialization
 │   └── charts.py                  # Plotly chart generators
 ├── utils/
+│   ├── __init__.py                 # Utils module initialization
+│   ├── plan_processor.py          # Centralized plan data processing
 │   ├── risk_assessment.py         # Basic risk scoring
-│   └── enhanced_risk_assessment.py # Advanced multi-cloud risk analysis
+│   ├── enhanced_risk_assessment.py # Advanced multi-cloud risk analysis
+│   ├── security_analyzer.py       # Security analysis utilities
+│   └── provider_factory.py        # Provider factory pattern
 ├── providers/
-│   └── cloud_detector.py          # Multi-cloud provider detection
+│   ├── __init__.py                 # Provider module initialization
+│   ├── base_provider.py           # Base provider class
+│   ├── cloud_detector.py          # Multi-cloud provider detection
+│   ├── aws_provider.py            # AWS-specific provider logic
+│   ├── azure_provider.py          # Azure-specific provider logic
+│   └── gcp_provider.py            # GCP-specific provider logic
+├── config/
+│   ├── __init__.py                 # Config module initialization
+│   ├── provider_settings.py       # Provider configuration settings
+│   └── risk_profiles.py           # Risk assessment profiles
 ├── ui/
+│   ├── __init__.py                 # UI module initialization
 │   ├── session_manager.py         # Session state management
 │   ├── error_handler.py           # Error handling and user guidance
 │   ├── progress_tracker.py        # Progress tracking
 │   └── performance_optimizer.py   # Performance optimization
-└── assets/
-    └── styles.css                 # Custom CSS styling
+├── tests/                          # Test suite
+│   ├── __init__.py                 # Test module initialization
+│   ├── README.md                   # Testing documentation
+│   ├── unit/                       # Unit tests
+│   ├── integration/                # Integration tests
+│   └── performance/                # Performance tests
+├── assets/
+│   └── styles.css                 # Custom CSS styling
+└── .kiro/                          # Kiro AI configuration
+    └── specs/                      # Project specifications
 ```
 
 ### PDF Report Setup (Optional)
