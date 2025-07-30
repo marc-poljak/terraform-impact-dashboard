@@ -44,7 +44,13 @@ class PerformanceBenchmarkSuite:
     """Comprehensive performance benchmark suite"""
     
     def __init__(self):
-        self.parser = PlanParser()
+        # Create sample plan data for parser initialization
+        sample_plan_data = {
+            "format_version": "1.0",
+            "terraform_version": "1.0.0",
+            "resource_changes": []
+        }
+        self.parser = PlanParser(sample_plan_data)
         self.optimizer = PerformanceOptimizer()
         self.session_manager = SessionStateManager()
         self.progress_tracker = ProgressTracker()

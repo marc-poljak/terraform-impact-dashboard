@@ -201,12 +201,17 @@ class TestLargeFilePerformance:
         start_time = time.time()
         
         # Parse the plan
-        parsed_data = self.parser.parse_plan(plan_data)
+        parser = PlanParser(plan_data)
+        parsed_data = {
+            'resource_changes': parser.get_resource_changes(),
+            'summary': parser.get_summary(),
+            'resource_types': parser.get_resource_types()
+        }
         
         # Create dataframe with optimization and chunking
         df = self.optimizer.optimize_dataframe_creation(
             parsed_data['resource_changes'], 
-            self.parser
+            parser
         )
         
         end_time = time.time()
@@ -226,10 +231,15 @@ class TestLargeFilePerformance:
         # Process multiple large files to test memory cleanup
         for i in range(3):
             plan_data = self.generate_large_plan(300)
-            parsed_data = self.parser.parse_plan(plan_data)
+            parser = PlanParser(plan_data)
+            parsed_data = {
+                'resource_changes': parser.get_resource_changes(),
+                'summary': parser.get_summary(),
+                'resource_types': parser.get_resource_types()
+            }
             df = self.optimizer.optimize_dataframe_creation(
                 parsed_data['resource_changes'], 
-                self.parser
+                parser
             )
             
             # Force garbage collection after each iteration
@@ -245,13 +255,18 @@ class TestLargeFilePerformance:
     def test_caching_performance_improvement(self):
         """Test that caching improves performance for repeated operations"""
         plan_data = self.generate_large_plan(200)
-        parsed_data = self.parser.parse_plan(plan_data)
+        parser = PlanParser(plan_data)
+        parsed_data = {
+            'resource_changes': parser.get_resource_changes(),
+            'summary': parser.get_summary(),
+            'resource_types': parser.get_resource_types()
+        }
         
         # First run (no cache)
         start_time = time.time()
         df1 = self.optimizer.optimize_dataframe_creation(
             parsed_data['resource_changes'], 
-            self.parser,
+            parser,
             use_cache=True
         )
         first_run_time = time.time() - start_time
@@ -260,7 +275,7 @@ class TestLargeFilePerformance:
         start_time = time.time()
         df2 = self.optimizer.optimize_dataframe_creation(
             parsed_data['resource_changes'], 
-            self.parser,
+            parser,
             use_cache=True
         )
         second_run_time = time.time() - start_time
@@ -280,7 +295,12 @@ class TestLargeFilePerformance:
     def test_chunked_processing_performance(self):
         """Test that chunked processing works correctly for large datasets"""
         plan_data = self.generate_large_plan(600)
-        parsed_data = self.parser.parse_plan(plan_data)
+        parser = PlanParser(plan_data)
+        parsed_data = {
+            'resource_changes': parser.get_resource_changes(),
+            'summary': parser.get_summary(),
+            'resource_types': parser.get_resource_types()
+        }
         
         start_time = time.time()
         
@@ -311,10 +331,15 @@ class TestLargeFilePerformance:
         
         # Test without progress tracking
         start_time = time.time()
-        parsed_data = self.parser.parse_plan(plan_data)
+        parser = PlanParser(plan_data)
+        parsed_data = {
+            'resource_changes': parser.get_resource_changes(),
+            'summary': parser.get_summary(),
+            'resource_types': parser.get_resource_types()
+        }
         df_no_progress = self.optimizer.optimize_dataframe_creation(
             parsed_data['resource_changes'], 
-            self.parser
+            parser
         )
         time_without_progress = time.time() - start_time
         
@@ -323,7 +348,7 @@ class TestLargeFilePerformance:
         with self.progress_tracker.track_progress("Processing large file", len(parsed_data['resource_changes'])):
             df_with_progress = self.optimizer.optimize_dataframe_creation(
                 parsed_data['resource_changes'], 
-                self.parser
+                parser
             )
         time_with_progress = time.time() - start_time
         
@@ -343,10 +368,15 @@ class TestLargeFilePerformance:
             plan_data = self.generate_large_plan(size)
             
             start_time = time.time()
-            parsed_data = self.parser.parse_plan(plan_data)
+            parser = PlanParser(plan_data)
+            parsed_data = {
+                'resource_changes': parser.get_resource_changes(),
+                'summary': parser.get_summary(),
+                'resource_types': parser.get_resource_types()
+            }
             df = self.optimizer.optimize_dataframe_creation(
                 parsed_data['resource_changes'], 
-                self.parser
+                parser
             )
             processing_time = time.time() - start_time
             processing_times.append(processing_time)
@@ -374,10 +404,15 @@ class TestLargeFilePerformance:
         
         def process_plan():
             try:
-                parsed_data = self.parser.parse_plan(plan_data)
+                parser = PlanParser(plan_data)
+                parsed_data = {
+                    'resource_changes': parser.get_resource_changes(),
+                    'summary': parser.get_summary(),
+                    'resource_types': parser.get_resource_types()
+                }
                 df = self.optimizer.optimize_dataframe_creation(
                     parsed_data['resource_changes'], 
-                    self.parser
+                    parser
                 )
                 results_queue.put(len(df))
             except Exception as e:
@@ -412,7 +447,13 @@ class TestPerformanceBenchmarks:
     
     def setup_method(self):
         """Set up benchmarking environment"""
-        self.parser = PlanParser()
+        # Create sample plan data for parser initialization
+        sample_plan_data = {
+            "format_version": "1.0",
+            "terraform_version": "1.0.0",
+            "resource_changes": []
+        }
+        self.parser = PlanParser(sample_plan_data)
         self.optimizer = PerformanceOptimizer()
         self.benchmarks = {}
     
@@ -430,7 +471,12 @@ class TestPerformanceBenchmarks:
             
             # Measure parsing time
             start_time = time.time()
-            parsed_data = self.parser.parse_plan(plan_data)
+            parser = PlanParser(plan_data)
+            parsed_data = {
+                'resource_changes': parser.get_resource_changes(),
+                'summary': parser.get_summary(),
+                'resource_types': parser.get_resource_types()
+            }
             parse_time = time.time() - start_time
             
             # Measure dataframe creation time

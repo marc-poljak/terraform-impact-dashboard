@@ -179,7 +179,12 @@ class TestMemoryUsage:
         
         # Generate test data
         plan_data = self._generate_large_plan(300)
-        parsed_data = self.parser.parse_plan(plan_data)
+        parser = PlanParser(plan_data)
+        parsed_data = {
+            'resource_changes': parser.get_resource_changes(),
+            'summary': parser.get_summary(),
+            'resource_types': parser.get_resource_types()
+        }
         
         # Process with caching enabled
         df1 = self.optimizer.optimize_dataframe_creation(
@@ -230,7 +235,12 @@ class TestMemoryUsage:
         def process_plan_thread(thread_id: int):
             try:
                 plan_data = self._generate_large_plan(150)
-                parsed_data = self.parser.parse_plan(plan_data)
+                parser = PlanParser(plan_data)
+                parsed_data = {
+                    'resource_changes': parser.get_resource_changes(),
+                    'summary': parser.get_summary(),
+                    'resource_types': parser.get_resource_types()
+                }
                 df = self.optimizer.optimize_dataframe_creation(
                     parsed_data['resource_changes'], 
                     self.parser
@@ -286,7 +296,12 @@ class TestMemoryUsage:
         for session_iteration in range(10):
             # Upload and process a file
             plan_data = self._generate_large_plan(100)
-            parsed_data = self.parser.parse_plan(plan_data)
+            parser = PlanParser(plan_data)
+            parsed_data = {
+                'resource_changes': parser.get_resource_changes(),
+                'summary': parser.get_summary(),
+                'resource_types': parser.get_resource_types()
+            }
             df = self.optimizer.optimize_dataframe_creation(
                 parsed_data['resource_changes'], 
                 self.parser
@@ -341,7 +356,12 @@ class TestMemoryUsage:
             
             # Process file of given size
             plan_data = self._generate_large_plan(size)
-            parsed_data = self.parser.parse_plan(plan_data)
+            parser = PlanParser(plan_data)
+            parsed_data = {
+                'resource_changes': parser.get_resource_changes(),
+                'summary': parser.get_summary(),
+                'resource_types': parser.get_resource_types()
+            }
             df = self.optimizer.optimize_dataframe_creation(
                 parsed_data['resource_changes'], 
                 self.parser
@@ -402,7 +422,12 @@ class TestMemoryUsage:
         # Test performance optimizer memory tracking
         with self.optimizer.performance_monitor("memory_test_operation"):
             plan_data = self._generate_large_plan(100)
-            parsed_data = self.parser.parse_plan(plan_data)
+            parser = PlanParser(plan_data)
+            parsed_data = {
+                'resource_changes': parser.get_resource_changes(),
+                'summary': parser.get_summary(),
+                'resource_types': parser.get_resource_types()
+            }
             df = self.optimizer.optimize_dataframe_creation(
                 parsed_data['resource_changes'], 
                 self.parser
@@ -464,7 +489,12 @@ class TestResourceCleanup:
                 temp_files.append(f.name)
         
         # Process files
-        parser = PlanParser()
+        sample_plan_data = {
+            "format_version": "1.0",
+            "terraform_version": "1.0.0",
+            "resource_changes": []
+        }
+        parser = PlanParser(sample_plan_data)
         for temp_file in temp_files:
             with open(temp_file, 'r') as f:
                 plan_data = json.load(f)
