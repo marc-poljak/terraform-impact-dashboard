@@ -237,7 +237,7 @@ class TFEClient:
             return False, error_message
     
     def _create_session(self) -> requests.Session:
-        """Create HTTP session with retry strategy."""
+        """Create HTTP session with retry strategy and enhanced security."""
         session = requests.Session()
         
         # Configure retry strategy
@@ -252,10 +252,27 @@ class TFEClient:
         session.mount("http://", adapter)
         session.mount("https://", adapter)
         
-        # Configure SSL verification
+        # Configure SSL verification and security settings
         config = self.credential_manager.get_config()
         if config:
             session.verify = config.verify_ssl
+            
+            # Enhanced security headers
+            session.headers.update({
+                'User-Agent': 'TerraformPlanDashboard/1.0',
+                'Accept': 'application/vnd.api+json',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache'
+            })
+            
+            # Warn about insecure connections
+            if not config.verify_ssl:
+                import warnings
+                warnings.warn(
+                    "SSL verification is disabled. This is insecure and should only be used for testing.",
+                    UserWarning,
+                    stacklevel=2
+                )
         
         return session
     
@@ -370,9 +387,17 @@ class TFEClient:
     def close(self):
         """Close the HTTP session and clear sensitive data."""
         if self._session:
+            # Clear session headers that might contain sensitive data
+            if hasattr(self._session, 'headers'):
+                self._session.headers.clear()
+            
             self._session.close()
             self._session = None
+        
         self._authenticated = False
         
         # Clear any stored plan data
         self.plan_manager.clear_plan_data()
+        
+        # Trigger credential cleanup
+        self.credential_manager.clear_credentials()

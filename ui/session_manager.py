@@ -8,6 +8,7 @@ Provides centralized session state initialization and management for components.
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 import streamlit as st
+import atexit
 
 
 class SessionStateManager:
@@ -16,6 +17,9 @@ class SessionStateManager:
     def __init__(self):
         """Initialize the session state manager"""
         self.initialize_session_state()
+        
+        # Register cleanup on session end
+        atexit.register(self._cleanup_on_session_end)
     
     def initialize_session_state(self) -> None:
         """
@@ -704,6 +708,33 @@ class SessionStateManager:
         self.set_selected_preset('Custom')
         
         return True
+    
+    def _cleanup_on_session_end(self) -> None:
+        """Cleanup sensitive data when session ends."""
+        try:
+            # Import here to avoid circular imports
+            from utils.credential_manager import CredentialManager
+            
+            # Cleanup all credential manager instances
+            CredentialManager.cleanup_all_instances()
+            
+            # Clear sensitive session state
+            sensitive_keys = [
+                'plan_data', 'parser', 'enhanced_risk_result', 
+                'enhanced_risk_assessor', 'generated_report'
+            ]
+            
+            for key in sensitive_keys:
+                if hasattr(st.session_state, key):
+                    delattr(st.session_state, key)
+                    
+        except Exception:
+            # Ignore errors during cleanup to prevent application crashes
+            pass
+    
+    def trigger_security_cleanup(self) -> None:
+        """Manually trigger security cleanup of sensitive data."""
+        self._cleanup_on_session_end()
     
     def get_advanced_filter_settings(self) -> Dict[str, Any]:
         """
