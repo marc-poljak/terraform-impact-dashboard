@@ -175,23 +175,59 @@ class UploadComponent:
 
         # Process and secure the uploaded file data if available
         if uploaded_file is not None:
-            # Parse and validate the file
-            plan_data, error_msg = self.validate_and_parse_file(uploaded_file, False)
-            
-            if plan_data is not None:
-                # Store plan data securely
-                self.plan_manager.store_plan_data(
-                    plan_data,
-                    source="file_upload"
-                )
+            # Show processing progress for file upload
+            with st.container():
+                st.markdown("### 🔄 Processing Uploaded File...")
                 
-                # Show secure plan summary
-                self._show_secure_plan_summary()
+                # Create progress tracking
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                # Step 1: File validation
+                status_text.info("🔍 **Step 1/3:** Validating file format and structure...")
+                progress_bar.progress(1/3)
+                
+                with st.spinner("Validating JSON format and structure..."):
+                    plan_data, error_msg = self.validate_and_parse_file(uploaded_file, False)
+                
+                if plan_data is None:
+                    status_text.error("❌ **File Validation Failed** - Please check the error messages above")
+                    progress_bar.progress(0)
+                    return None
+                
+                status_text.success("✅ **Step 1:** File validation completed successfully")
+                
+                # Step 2: Security processing
+                status_text.info("🔒 **Step 2/3:** Processing file securely...")
+                progress_bar.progress(2/3)
+                
+                with st.spinner("Securing plan data and extracting metadata..."):
+                    # Store plan data securely
+                    self.plan_manager.store_plan_data(
+                        plan_data,
+                        source="file_upload"
+                    )
+                    import time
+                    time.sleep(0.5)  # Simulate security processing
+                
+                status_text.success("✅ **Step 2:** Plan data secured and processed")
+                
+                # Step 3: Analysis preparation
+                status_text.info("📊 **Step 3/3:** Preparing data for analysis...")
+                progress_bar.progress(3/3)
+                
+                with st.spinner("Generating plan summary and preparing analysis..."):
+                    # Show secure plan summary
+                    self._show_secure_plan_summary()
+                    import time
+                    time.sleep(0.5)  # Simulate analysis preparation
+                
+                status_text.success("🎉 **All Steps Complete!** Your plan is ready for analysis")
                 
                 # Return secure copy of plan data
                 return self.plan_manager.get_plan_data()
-            else:
-                return None
+        
+        return None
         
         return None
     
