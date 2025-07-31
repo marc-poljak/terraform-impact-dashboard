@@ -173,13 +173,10 @@ def main():
     components['onboarding_checklist'].render_contextual_hints('file_upload')
     
     if plan_input is not None:
-        # Track progress for both file uploads and TFE integration
-        if hasattr(plan_input, 'getvalue') or hasattr(plan_input, 'read'):
-            error_handler.track_user_progress('file_uploaded')
-            components['onboarding_checklist'].mark_item_completed('file_uploaded')
-        else:
-            error_handler.track_user_progress('tfe_plan_retrieved')
-            components['onboarding_checklist'].mark_item_completed('file_uploaded')  # Same completion for both methods
+        # Both upload methods now return secure plan data dictionaries
+        # Track progress for successful plan data retrieval
+        error_handler.track_user_progress('plan_data_loaded')
+        components['onboarding_checklist'].mark_item_completed('file_uploaded')
 
     if plan_input is not None:
         process_plan_data(plan_input, components, session_manager, error_handler, plan_processor, show_debug, enable_multi_cloud)

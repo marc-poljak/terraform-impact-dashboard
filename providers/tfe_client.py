@@ -14,6 +14,7 @@ from urllib3.util.retry import Retry
 
 from utils.credential_manager import CredentialManager, TFEConfig
 from utils.tfe_error_handler import TFEErrorHandler, TFEErrorContext, TFEErrorType
+from utils.secure_plan_manager import SecurePlanManager
 
 
 class TFEClient:
@@ -36,6 +37,7 @@ class TFEClient:
         self._config: Optional[TFEConfig] = None
         self._authenticated = False
         self.error_handler = TFEErrorHandler()
+        self.plan_manager = SecurePlanManager()
     
     def authenticate(self, server: str, token: str, organization: str) -> Tuple[bool, Optional[str]]:
         """
@@ -162,7 +164,19 @@ class TFEClient:
         # Execute with retry logic
         result, error_message = self.error_handler.retry_with_backoff(_get_plan_operation, context)
         
-        return result, error_message
+        if result:
+            # Store plan data securely
+            self.plan_manager.store_plan_data(
+                result, 
+                source="tfe_integration",
+                workspace_id=workspace_id,
+                run_id=run_id
+            )
+            
+            # Return secure copy
+            return self.plan_manager.get_plan_data(), None
+        
+        return None, error_message
     
     def validate_connection(self) -> Tuple[bool, str]:
         """
@@ -354,8 +368,11 @@ class TFEClient:
             return response.json(), None
     
     def close(self):
-        """Close the HTTP session."""
+        """Close the HTTP session and clear sensitive data."""
         if self._session:
             self._session.close()
             self._session = None
         self._authenticated = False
+        
+        # Clear any stored plan data
+        self.plan_manager.clear_plan_data()

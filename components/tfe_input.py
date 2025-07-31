@@ -13,6 +13,7 @@ from ui.error_handler import ErrorHandler
 from utils.credential_manager import CredentialManager
 from providers.tfe_client import TFEClient
 from components.base_component import BaseComponent
+from utils.secure_plan_manager import SecurePlanManager
 
 
 class TFEInputComponent(BaseComponent):
@@ -24,6 +25,7 @@ class TFEInputComponent(BaseComponent):
         self.credential_manager = CredentialManager()
         self.tfe_client = TFEClient(self.credential_manager)
         self.error_handler = ErrorHandler()
+        self.plan_manager = SecurePlanManager()
     
     def render(self) -> Optional[Dict[str, Any]]:
         """
@@ -251,62 +253,74 @@ class TFEInputComponent(BaseComponent):
             
             step3_status.success("✅ **Step 3:** Plan data retrieved successfully")
             
-            # Show plan summary
-            self._show_plan_summary(plan_data)
+            # Store plan data securely and show summary
+            if plan_data:
+                config = self.credential_manager.get_config()
+                self.plan_manager.store_plan_data(
+                    plan_data,
+                    source="tfe_integration", 
+                    workspace_id=config.workspace_id if config else None,
+                    run_id=config.run_id if config else None
+                )
+                self._show_plan_summary_secure()
             
             return plan_data
     
 
     
-    def _show_plan_summary(self, plan_data: Dict[str, Any]) -> None:
+    def _show_plan_summary_secure(self) -> None:
         """
-        Show summary of retrieved plan data
-        
-        Args:
-            plan_data: The retrieved plan data
+        Show summary of retrieved plan data using secure plan manager.
+        Displays plan information without exposing sensitive data.
         """
         st.markdown("### 📊 Plan Summary")
         
+        # Get secure summary from plan manager
+        summary = self.plan_manager.get_masked_summary()
+        metadata = self.plan_manager.get_plan_metadata()
+        
+        if not metadata:
+            st.warning("⚠️ No plan data available for summary")
+            return
+        
         col1, col2, col3 = st.columns(3)
         
-        # Extract basic plan information
-        terraform_version = plan_data.get('terraform_version', 'Unknown')
-        resource_changes = plan_data.get('resource_changes', [])
-        format_version = plan_data.get('format_version', 'Unknown')
-        
         with col1:
-            st.metric("🔧 Terraform Version", terraform_version)
+            st.metric("🔧 Terraform Version", metadata.terraform_version)
         
         with col2:
-            st.metric("📄 Format Version", format_version)
+            st.metric("📄 Format Version", metadata.format_version)
         
         with col3:
-            st.metric("🔄 Resource Changes", len(resource_changes))
+            st.metric("🔄 Resource Changes", metadata.resource_count)
         
-        # Show action summary if resource changes exist
-        if resource_changes:
-            actions = {}
-            for change in resource_changes:
-                change_actions = change.get('change', {}).get('actions', [])
-                for action in change_actions:
-                    actions[action] = actions.get(action, 0) + 1
+        # Show action summary if available
+        if metadata.action_summary:
+            st.write("**Planned Actions:**")
+            action_cols = st.columns(len(metadata.action_summary))
             
-            if actions:
-                st.write("**Planned Actions:**")
-                action_cols = st.columns(len(actions))
-                
-                action_icons = {
-                    'create': '➕',
-                    'update': '🔄',
-                    'delete': '❌',
-                    'replace': '🔄',
-                    'no-op': '⚪'
-                }
-                
-                for i, (action, count) in enumerate(actions.items()):
-                    icon = action_icons.get(action, '🔹')
-                    with action_cols[i]:
-                        st.metric(f"{icon} {action.title()}", count)
+            action_icons = {
+                'create': '➕',
+                'update': '🔄',
+                'delete': '❌',
+                'replace': '🔄',
+                'no-op': '⚪'
+            }
+            
+            for i, (action, count) in enumerate(metadata.action_summary.items()):
+                icon = action_icons.get(action, '🔹')
+                with action_cols[i]:
+                    st.metric(f"{icon} {action.title()}", count)
+        
+        # Show secure metadata
+        with st.expander("🔒 **Secure Plan Information**", expanded=False):
+            st.write(f"**Source:** {metadata.source}")
+            st.write(f"**Data Size:** {summary.get('data_size', 'Unknown')}")
+            if summary.get('workspace_id'):
+                st.write(f"**Workspace ID:** {summary['workspace_id']}")
+            if summary.get('run_id'):
+                st.write(f"**Run ID:** {summary['run_id']}")
+            st.info("🔒 **Security Note:** Plan data is stored securely in memory only and will be automatically cleared when the session ends.")
         
         st.success("🎉 **Ready for analysis!** The plan data will now be processed through the standard analysis pipeline.")
     
@@ -380,7 +394,8 @@ retry_attempts: 3"""
                     break
     
     def cleanup(self) -> None:
-        """Clean up resources and credentials"""
+        """Clean up resources, credentials, and plan data"""
         self.credential_manager.clear_credentials()
+        self.plan_manager.clear_plan_data()
         if hasattr(self.tfe_client, 'close'):
             self.tfe_client.close()

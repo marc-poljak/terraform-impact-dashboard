@@ -525,11 +525,13 @@ class TFEErrorHandler:
     def _handle_unknown_error(self, context: TFEErrorContext) -> Tuple[bool, str]:
         """Handle unknown/unexpected errors."""
         if context.retry_count < self.max_retries:
-            return True, f"Unexpected error occurred: {str(context.original_error)}. Will retry."
+            # Don't include potentially sensitive error details in retry message
+            return True, "Unexpected error occurred. Will retry."
         
+        # Create safe error message without exposing sensitive data
         error_message = (
             f"❌ **Unexpected Error**\n\n"
-            f"An unexpected error occurred: {str(context.original_error)}\n\n"
+            f"An unexpected error occurred during {context.operation}.\n\n"
             "**What you can do:**\n"
             "• Try the operation again\n"
             "• Use file upload as an alternative\n"

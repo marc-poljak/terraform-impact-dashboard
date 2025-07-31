@@ -10,6 +10,7 @@ import json
 from typing import Optional, Dict, Any, Tuple, List
 from ui.error_handler import ErrorHandler
 from components.tfe_input import TFEInputComponent
+from utils.secure_plan_manager import SecurePlanManager
 
 
 class UploadComponent:
@@ -17,7 +18,7 @@ class UploadComponent:
     
     def __init__(self):
         """Initialize the UploadComponent"""
-        pass
+        self.plan_manager = SecurePlanManager()
     
     def render(self) -> Optional[Dict[str, Any]]:
         """
@@ -167,9 +168,25 @@ class UploadComponent:
                 show_once=True
             )
 
-        # Return the uploaded file data if available
+        # Process and secure the uploaded file data if available
         if uploaded_file is not None:
-            return uploaded_file
+            # Parse and validate the file
+            plan_data, error_msg = self.validate_and_parse_file(uploaded_file, False)
+            
+            if plan_data is not None:
+                # Store plan data securely
+                self.plan_manager.store_plan_data(
+                    plan_data,
+                    source="file_upload"
+                )
+                
+                # Show secure plan summary
+                self._show_secure_plan_summary()
+                
+                # Return secure copy of plan data
+                return self.plan_manager.get_plan_data()
+            else:
+                return None
         
         return None
     
@@ -187,6 +204,58 @@ class UploadComponent:
             st.error(f"❌ **TFE Integration Error:** {str(e)}")
             st.info("💡 **Fallback:** You can still use the File Upload tab to analyze your plans.")
             return None
+    
+    def _show_secure_plan_summary(self) -> None:
+        """
+        Show summary of uploaded plan data using secure plan manager.
+        Displays plan information without exposing sensitive data.
+        """
+        st.markdown("### 📊 Plan Summary")
+        
+        # Get secure summary from plan manager
+        summary = self.plan_manager.get_masked_summary()
+        metadata = self.plan_manager.get_plan_metadata()
+        
+        if not metadata:
+            st.warning("⚠️ No plan data available for summary")
+            return
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("🔧 Terraform Version", metadata.terraform_version)
+        
+        with col2:
+            st.metric("📄 Format Version", metadata.format_version)
+        
+        with col3:
+            st.metric("🔄 Resource Changes", metadata.resource_count)
+        
+        # Show action summary if available
+        if metadata.action_summary:
+            st.write("**Planned Actions:**")
+            action_cols = st.columns(len(metadata.action_summary))
+            
+            action_icons = {
+                'create': '➕',
+                'update': '🔄',
+                'delete': '❌',
+                'replace': '🔄',
+                'no-op': '⚪'
+            }
+            
+            for i, (action, count) in enumerate(metadata.action_summary.items()):
+                icon = action_icons.get(action, '🔹')
+                with action_cols[i]:
+                    st.metric(f"{icon} {action.title()}", count)
+        
+        # Show secure metadata
+        with st.expander("🔒 **Secure Plan Information**", expanded=False):
+            st.write(f"**Source:** {metadata.source}")
+            st.write(f"**Data Size:** {summary.get('data_size', 'Unknown')}")
+            st.info("🔒 **Security Note:** Plan data is stored securely in memory only and will be automatically cleared when the session ends.")
+        
+        st.success("🎉 **Ready for analysis!** The plan data will now be processed through the standard analysis pipeline.")
     
     def validate_and_parse_file(self, uploaded_file, show_debug: bool = False) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
         """
@@ -310,6 +379,10 @@ class UploadComponent:
             issues.append("Missing 'format_version' - may indicate old Terraform version")
         
         return issues
+    
+    def cleanup(self) -> None:
+        """Clean up resources and plan data"""
+        self.plan_manager.clear_plan_data()
     
     def _has_minimal_required_structure(self, plan_data: Dict[str, Any]) -> bool:
         """
