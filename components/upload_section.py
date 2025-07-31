@@ -1,14 +1,15 @@
 """
 Upload Section Component for Terraform Plan Impact Dashboard
 
-This component handles the file upload functionality, preserving the existing
-upload styling with dashed border and help text.
+This component handles both file upload and TFE integration functionality,
+providing a tabbed interface for users to choose their preferred input method.
 """
 
 import streamlit as st
 import json
 from typing import Optional, Dict, Any, Tuple, List
 from ui.error_handler import ErrorHandler
+from components.tfe_input import TFEInputComponent
 
 
 class UploadComponent:
@@ -20,16 +21,41 @@ class UploadComponent:
     
     def render(self) -> Optional[Dict[str, Any]]:
         """
-        Render the file upload section with enhanced guidance and return uploaded file data
+        Render the upload section with tabbed interface for file upload and TFE integration
         
         Returns:
-            Optional[Dict[str, Any]]: The uploaded plan data as a dictionary,
-                                    or None if no file is uploaded
+            Optional[Dict[str, Any]]: The plan data (from file or TFE) as a dictionary,
+                                    or None if no plan is available
         """
         error_handler = ErrorHandler()
         
-        # File upload section with preserved styling
+        # Main upload section container
         st.markdown('<div class="upload-section">', unsafe_allow_html=True)
+        st.markdown("## 📊 Load Terraform Plan Data")
+        
+        # Create tabs for different input methods
+        tab1, tab2 = st.tabs(["📁 File Upload", "🔗 TFE Integration"])
+        
+        plan_data = None
+        
+        with tab1:
+            plan_data = self._render_file_upload_tab()
+        
+        with tab2:
+            plan_data = self._render_tfe_integration_tab()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+        return plan_data
+    
+    def _render_file_upload_tab(self) -> Optional[Dict[str, Any]]:
+        """
+        Render the file upload tab content
+        
+        Returns:
+            Optional[Dict[str, Any]]: The uploaded plan data or None
+        """
+        error_handler = ErrorHandler()
+        
         st.markdown("### 📁 Upload Terraform Plan JSON")
         
         # Show contextual help for file upload
@@ -137,13 +163,26 @@ class UploadComponent:
                 show_once=True
             )
 
-        st.markdown('</div>', unsafe_allow_html=True)
-        
         # Return the uploaded file data if available
         if uploaded_file is not None:
             return uploaded_file
         
         return None
+    
+    def _render_tfe_integration_tab(self) -> Optional[Dict[str, Any]]:
+        """
+        Render the TFE integration tab content
+        
+        Returns:
+            Optional[Dict[str, Any]]: The retrieved plan data or None
+        """
+        try:
+            tfe_component = TFEInputComponent()
+            return tfe_component.render()
+        except Exception as e:
+            st.error(f"❌ **TFE Integration Error:** {str(e)}")
+            st.info("💡 **Fallback:** You can still use the File Upload tab to analyze your plans.")
+            return None
     
     def validate_and_parse_file(self, uploaded_file, show_debug: bool = False) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
         """

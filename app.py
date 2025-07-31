@@ -59,9 +59,9 @@ def initialize_components(session_manager):
     }
 
 
-def process_uploaded_file(uploaded_file, components, session_manager, error_handler, plan_processor, show_debug, enable_multi_cloud):
-    """Process uploaded file and coordinate data flow between components."""
-    processed_data = plan_processor.process_plan_data(uploaded_file, components['upload'], error_handler, show_debug, enable_multi_cloud)
+def process_plan_data(plan_input, components, session_manager, error_handler, plan_processor, show_debug, enable_multi_cloud):
+    """Process plan data (from file upload or TFE) and coordinate data flow between components."""
+    processed_data = plan_processor.process_plan_data(plan_input, components['upload'], error_handler, show_debug, enable_multi_cloud)
     if processed_data is None:
         return
     
@@ -167,17 +167,22 @@ def main():
     session_manager.set_debug_state(show_debug)
     session_manager.set_multi_cloud_state(enable_multi_cloud)
     
-    # Render upload section with contextual help
-    uploaded_file = components['upload'].render()
+    # Render upload section with contextual help (supports both file upload and TFE)
+    plan_input = components['upload'].render()
     components['help_system'].render_contextual_help_panel('upload')
     components['onboarding_checklist'].render_contextual_hints('file_upload')
     
-    if uploaded_file is not None:
-        error_handler.track_user_progress('file_uploaded')
-        components['onboarding_checklist'].mark_item_completed('file_uploaded')
+    if plan_input is not None:
+        # Track progress for both file uploads and TFE integration
+        if hasattr(plan_input, 'getvalue') or hasattr(plan_input, 'read'):
+            error_handler.track_user_progress('file_uploaded')
+            components['onboarding_checklist'].mark_item_completed('file_uploaded')
+        else:
+            error_handler.track_user_progress('tfe_plan_retrieved')
+            components['onboarding_checklist'].mark_item_completed('file_uploaded')  # Same completion for both methods
 
-    if uploaded_file is not None:
-        process_uploaded_file(uploaded_file, components, session_manager, error_handler, plan_processor, show_debug, enable_multi_cloud)
+    if plan_input is not None:
+        process_plan_data(plan_input, components, session_manager, error_handler, plan_processor, show_debug, enable_multi_cloud)
     else:
         components['onboarding_checklist'].render()
         components['onboarding_checklist'].render_enhanced_instructions()

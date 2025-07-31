@@ -31,13 +31,13 @@ class PlanProcessor:
         self.progress_tracker = ProgressTracker()
         self.performance_optimizer = PerformanceOptimizer()
     
-    def process_plan_data(self, uploaded_file, upload_component, error_handler, show_debug, enable_multi_cloud):
+    def process_plan_data(self, plan_input, upload_component, error_handler, show_debug, enable_multi_cloud):
         """
         Centralized plan data processing workflow with enhanced progress tracking and performance optimization.
-        Maintains compatibility with existing parsers, risk assessors, and chart generators.
+        Handles both uploaded files and TFE-retrieved plan data.
         
         Args:
-            uploaded_file: The uploaded file from Streamlit
+            plan_input: Either an uploaded file from Streamlit or plan data dict from TFE
             upload_component: UploadComponent instance
             error_handler: ErrorHandler instance
             show_debug: Whether debug mode is enabled
@@ -46,17 +46,39 @@ class PlanProcessor:
         Returns:
             Dict containing processed data or None if processing failed
         """
-        file_size = uploaded_file.size if hasattr(uploaded_file, 'size') else len(uploaded_file.getvalue())
+        # Determine input type and get file size for progress tracking
+        is_file_upload = hasattr(plan_input, 'getvalue') or hasattr(plan_input, 'read')
+        
+        if is_file_upload:
+            file_size = plan_input.size if hasattr(plan_input, 'size') else len(plan_input.getvalue())
+        else:
+            # For TFE data, estimate size based on JSON string length
+            import json
+            file_size = len(json.dumps(plan_input)) if isinstance(plan_input, dict) else 1024
         
         # Use progress tracking context manager for file processing
         with self.progress_tracker.track_file_processing(file_size) as stage_tracker:
             try:
-                # Stage 1: Parsing - Validate and parse the uploaded file
+                # Stage 1: Parsing - Validate and parse the input (file or TFE data)
                 stage_tracker.next_stage()  # Show parsing progress
                 with self.performance_optimizer.performance_monitor("file_parsing"):
-                    plan_data, error_msg = upload_component.validate_and_parse_file(uploaded_file, show_debug)
-                    if plan_data is None:
-                        return None
+                    if is_file_upload:
+                        # Handle file upload
+                        plan_data, error_msg = upload_component.validate_and_parse_file(plan_input, show_debug)
+                        if plan_data is None:
+                            return None
+                    else:
+                        # Handle TFE data (already parsed JSON)
+                        plan_data = plan_input
+                        if not isinstance(plan_data, dict):
+                            error_handler.handle_processing_error(
+                                ValueError("Invalid plan data format"), 
+                                "TFE plan data processing"
+                            )
+                            return None
+                        
+                        # Show success message for TFE data
+                        st.success("✅ **TFE plan data validated successfully!**")
                 
                 # Stage 2: Validation - Parse the uploaded file using existing PlanParser
                 stage_tracker.next_stage()  # Show validation progress
