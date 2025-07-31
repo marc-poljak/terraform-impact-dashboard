@@ -36,6 +36,7 @@ class ReportGeneratorComponent(BaseComponent):
             session_manager: Optional session state manager
         """
         super().__init__(session_manager)
+        self.session_manager = session_manager
         self.report_sections = {
             'executive_summary': True,
             'risk_analysis': True,
@@ -92,6 +93,7 @@ class ReportGeneratorComponent(BaseComponent):
             <div class="summary-header">
                 <p><strong>Report Generated:</strong> {timestamp}</p>
                 <p><strong>Terraform Version:</strong> {plan_data.get('terraform_version', 'Unknown')}</p>
+                {self._get_tfe_metadata_html()}
             </div>
             
             <div class="key-metrics">
@@ -133,6 +135,56 @@ class ReportGeneratorComponent(BaseComponent):
         </div>
         """
     
+    def _get_tfe_metadata_html(self) -> str:
+        """
+        Generate HTML for TFE metadata if plan comes from TFE integration
+        
+        Returns:
+            HTML string with TFE metadata or empty string if not from TFE
+        """
+        if not self.session_manager:
+            return ""
+        
+        try:
+            plan_manager = self.session_manager.get_plan_manager()
+            metadata = plan_manager.get_plan_metadata()
+            
+            if not metadata or metadata.source != "tfe_integration":
+                return ""
+            
+            # Generate masked IDs for security
+            masked_workspace = self._mask_id_for_report(metadata.workspace_id) if metadata.workspace_id else "N/A"
+            masked_run = self._mask_id_for_report(metadata.run_id) if metadata.run_id else "N/A"
+            
+            return f"""
+                <div class="tfe-metadata">
+                    <h4>🔗 Terraform Cloud/Enterprise Information</h4>
+                    <p><strong>Data Source:</strong> TFE Integration</p>
+                    <p><strong>Workspace ID:</strong> {masked_workspace}</p>
+                    <p><strong>Run ID:</strong> {masked_run}</p>
+                    <p><em>Note: IDs are masked for security. Plan data retrieved via secure API connection.</em></p>
+                </div>
+            """
+        except Exception:
+            # Return empty string if any error occurs
+            return ""
+    
+    def _mask_id_for_report(self, id_value: str) -> str:
+        """
+        Mask ID for safe display in reports (same logic as SecurePlanManager)
+        
+        Args:
+            id_value: ID to mask
+            
+        Returns:
+            Masked ID string
+        """
+        if not id_value or len(id_value) <= 8:
+            return '*' * len(id_value) if id_value else ''
+        
+        # Show prefix and suffix, mask the middle
+        return f"{id_value[:4]}{'*' * (len(id_value) - 8)}{id_value[-4:]}"
+
     def generate_risk_analysis(self, 
                              risk_summary: Dict[str, Any],
                              resource_changes: List[Dict],

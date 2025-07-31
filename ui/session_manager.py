@@ -102,6 +102,11 @@ class SessionStateManager:
             
         if not hasattr(st.session_state, 'enhanced_risk_assessor'):
             st.session_state.enhanced_risk_assessor = None
+        
+        # Plan manager for secure plan data handling
+        if not hasattr(st.session_state, 'plan_manager'):
+            from utils.secure_plan_manager import SecurePlanManager
+            st.session_state.plan_manager = SecurePlanManager()
     
     def get_filter_state(self) -> Dict[str, Any]:
         """
@@ -714,14 +719,18 @@ class SessionStateManager:
         try:
             # Import here to avoid circular imports
             from utils.credential_manager import CredentialManager
+            from utils.secure_plan_manager import SecurePlanManager
             
             # Cleanup all credential manager instances
             CredentialManager.cleanup_all_instances()
             
+            # Cleanup all plan manager instances
+            SecurePlanManager.cleanup_all_instances()
+            
             # Clear sensitive session state
             sensitive_keys = [
                 'plan_data', 'parser', 'enhanced_risk_result', 
-                'enhanced_risk_assessor', 'generated_report'
+                'enhanced_risk_assessor', 'generated_report', 'plan_manager'
             ]
             
             for key in sensitive_keys:
@@ -833,3 +842,15 @@ class SessionStateManager:
             ISO format timestamp string or None if no report exists
         """
         return st.session_state.get('report_generated_at', None)
+    
+    def get_plan_manager(self):
+        """
+        Get the shared plan manager instance from session state.
+        
+        Returns:
+            SecurePlanManager instance
+        """
+        if not hasattr(st.session_state, 'plan_manager'):
+            from utils.secure_plan_manager import SecurePlanManager
+            st.session_state.plan_manager = SecurePlanManager()
+        return st.session_state.plan_manager

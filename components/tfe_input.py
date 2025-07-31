@@ -19,13 +19,18 @@ from utils.secure_plan_manager import SecurePlanManager
 class TFEInputComponent(BaseComponent):
     """Component for handling TFE configuration input and plan retrieval"""
     
-    def __init__(self):
+    def __init__(self, session_manager=None):
         """Initialize the TFE input component"""
         super().__init__()
+        self.session_manager = session_manager
         self.credential_manager = CredentialManager()
         self.tfe_client = TFEClient(self.credential_manager)
         self.error_handler = ErrorHandler()
-        self.plan_manager = SecurePlanManager()
+        # Use shared plan manager from session state if available
+        if session_manager:
+            self.plan_manager = session_manager.get_plan_manager()
+        else:
+            self.plan_manager = SecurePlanManager()
     
     def render(self) -> Optional[Dict[str, Any]]:
         """

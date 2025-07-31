@@ -8,6 +8,7 @@ Extracted from the main app.py file to improve code organization.
 from typing import Dict, Any, Optional
 import streamlit as st
 from .base_component import BaseComponent
+from utils.secure_plan_manager import SecurePlanManager
 
 
 class SummaryCardsComponent(BaseComponent):
@@ -21,7 +22,109 @@ class SummaryCardsComponent(BaseComponent):
             session_manager: Optional session state manager
         """
         super().__init__(session_manager)
+        self.session_manager = session_manager
     
+    def render_tfe_metadata_section(self) -> None:
+        """
+        Render TFE metadata information when plan data comes from TFE integration
+        """
+        # Get plan manager from session state
+        plan_manager = self.session_manager.get_plan_manager() if self.session_manager else SecurePlanManager()
+        metadata = plan_manager.get_plan_metadata()
+        
+        if not metadata or metadata.source != "tfe_integration":
+            return
+        
+        st.markdown("### 🔗 Terraform Cloud/Enterprise Information")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric(
+                label="📡 Data Source",
+                value="TFE Integration",
+                help="""
+                **TFE Integration:**
+                • Plan data retrieved directly from Terraform Cloud/Enterprise
+                • No manual file download required
+                • Real-time access to workspace runs
+                • Secure credential handling with automatic cleanup
+                """
+            )
+        
+        with col2:
+            if metadata.workspace_id:
+                # Show masked workspace ID for security
+                masked_workspace = self._mask_id(metadata.workspace_id)
+                st.metric(
+                    label="🏢 Workspace",
+                    value=masked_workspace,
+                    help=f"""
+                    **Workspace Information:**
+                    • Workspace ID: {masked_workspace}
+                    • Source: Terraform Cloud/Enterprise
+                    • Data retrieved via secure API connection
+                    
+                    **Security Note:**
+                    Workspace ID is masked for security. Full ID is used internally for API calls.
+                    """
+                )
+        
+        with col3:
+            if metadata.run_id:
+                # Show masked run ID for security
+                masked_run = self._mask_id(metadata.run_id)
+                st.metric(
+                    label="🏃 Run",
+                    value=masked_run,
+                    help=f"""
+                    **Run Information:**
+                    • Run ID: {masked_run}
+                    • Plan data extracted from this specific run
+                    • Retrieved via TFE API with structured JSON output
+                    
+                    **Security Note:**
+                    Run ID is masked for security. Full ID is used internally for API calls.
+                    """
+                )
+        
+        # Show additional TFE-specific information
+        with st.expander("🔒 **TFE Security & Data Handling**", expanded=False):
+            st.markdown("""
+            **Security Features:**
+            • ✅ Credentials stored in memory only (never persisted to disk)
+            • ✅ Automatic credential cleanup on session end
+            • ✅ Sensitive values masked in all displays
+            • ✅ SSL encryption for all API communications
+            • ✅ No credentials included in error messages or logs
+            
+            **Data Flow:**
+            1. Configuration uploaded via secure YAML file
+            2. Credentials validated and stored in memory
+            3. TFE API connection established with SSL verification
+            4. Plan JSON data retrieved from workspace run
+            5. Data processed through standard analysis pipeline
+            6. Credentials automatically cleared on session end
+            """)
+        
+        st.markdown("---")
+    
+    def _mask_id(self, id_value: str) -> str:
+        """
+        Mask ID for safe display (same logic as SecurePlanManager)
+        
+        Args:
+            id_value: ID to mask
+            
+        Returns:
+            Masked ID string
+        """
+        if not id_value or len(id_value) <= 8:
+            return '*' * len(id_value) if id_value else ''
+        
+        # Show prefix and suffix, mask the middle
+        return f"{id_value[:4]}{'*' * (len(id_value) - 8)}{id_value[-4:]}"
+
     def render_change_summary(self, summary: Dict[str, int], risk_summary: Dict[str, Any]) -> None:
         """
         Render the change summary section with create/update/delete metrics
@@ -316,6 +419,9 @@ class SummaryCardsComponent(BaseComponent):
             show_detailed: Whether to show detailed metrics section
         """
         try:
+            # Render TFE metadata section if plan comes from TFE integration
+            self.render_tfe_metadata_section()
+            
             # Render change summary cards
             self.render_change_summary(summary, risk_summary)
             

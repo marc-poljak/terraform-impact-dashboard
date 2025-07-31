@@ -16,9 +16,14 @@ from utils.secure_plan_manager import SecurePlanManager
 class UploadComponent:
     """Component for handling Terraform plan file uploads"""
     
-    def __init__(self):
+    def __init__(self, session_manager=None):
         """Initialize the UploadComponent"""
-        self.plan_manager = SecurePlanManager()
+        self.session_manager = session_manager
+        # Use shared plan manager from session state if available
+        if session_manager:
+            self.plan_manager = session_manager.get_plan_manager()
+        else:
+            self.plan_manager = SecurePlanManager()
     
     def render(self) -> Optional[Dict[str, Any]]:
         """
@@ -198,7 +203,7 @@ class UploadComponent:
             Optional[Dict[str, Any]]: The retrieved plan data or None
         """
         try:
-            tfe_component = TFEInputComponent()
+            tfe_component = TFEInputComponent(self.session_manager)
             return tfe_component.render()
         except Exception as e:
             st.error(f"❌ **TFE Integration Error:** {str(e)}")

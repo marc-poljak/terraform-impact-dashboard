@@ -47,7 +47,7 @@ def initialize_components(session_manager):
     return {
         'header': HeaderComponent(),
         'sidebar': SidebarComponent(),
-        'upload': UploadComponent(),
+        'upload': UploadComponent(session_manager),
         'summary_cards': SummaryCardsComponent(session_manager),
         'visualizations': VisualizationsComponent(session_manager),
         'data_table': DataTableComponent(),
