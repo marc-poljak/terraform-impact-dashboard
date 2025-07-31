@@ -224,15 +224,14 @@ class TFEInputComponent(BaseComponent):
             step2_status = st.empty()
             step2_status.info("🔐 **Step 2:** Authenticating with TFE...")
             
-            is_authenticated = self.tfe_client.authenticate(
+            is_authenticated, auth_error = self.tfe_client.authenticate(
                 config.tfe_server, 
                 config.token, 
                 config.organization
             )
             
             if not is_authenticated:
-                step2_status.error("❌ **Step 2 Failed:** Authentication failed")
-                self._show_authentication_troubleshooting()
+                step2_status.error(f"❌ **Step 2 Failed:** {auth_error}")
                 return None
             
             step2_status.success("✅ **Step 2:** Successfully authenticated with TFE")
@@ -248,7 +247,6 @@ class TFEInputComponent(BaseComponent):
             
             if error_message:
                 step3_status.error(f"❌ **Step 3 Failed:** {error_message}")
-                self._show_plan_retrieval_troubleshooting(error_message)
                 return None
             
             step3_status.success("✅ **Step 3:** Plan data retrieved successfully")
@@ -258,74 +256,7 @@ class TFEInputComponent(BaseComponent):
             
             return plan_data
     
-    def _show_connection_troubleshooting(self, error_message: str) -> None:
-        """
-        Show troubleshooting guidance for connection issues
-        
-        Args:
-            error_message: The connection error message
-        """
-        with st.expander("🔧 **Connection Troubleshooting**", expanded=True):
-            st.write(f"**Error:** {error_message}")
-            st.write("")
-            st.write("**Common solutions:**")
-            
-            if "SSL" in error_message:
-                st.write("• Check SSL certificate configuration")
-                st.write("• Try setting `verify_ssl: false` for testing (not recommended for production)")
-            elif "timeout" in error_message.lower():
-                st.write("• Increase timeout value in configuration")
-                st.write("• Check network connectivity")
-            elif "connect" in error_message.lower():
-                st.write("• Verify TFE server URL is correct")
-                st.write("• Check if server is accessible from your network")
-                st.write("• Verify firewall/proxy settings")
-            else:
-                st.write("• Verify TFE server URL format")
-                st.write("• Check network connectivity")
-                st.write("• Try again in a few moments")
-    
-    def _show_authentication_troubleshooting(self) -> None:
-        """Show troubleshooting guidance for authentication issues"""
-        with st.expander("🔧 **Authentication Troubleshooting**", expanded=True):
-            st.write("**Common authentication issues:**")
-            st.write("• **Invalid token:** Verify your API token is correct and hasn't expired")
-            st.write("• **Insufficient permissions:** Ensure token has read access to the organization")
-            st.write("• **Wrong organization:** Check organization name spelling")
-            st.write("• **Token format:** Ensure token doesn't have extra spaces or characters")
-            st.write("")
-            st.write("**To generate a new API token:**")
-            st.write("1. Go to your TFE user settings")
-            st.write("2. Navigate to 'Tokens' section")
-            st.write("3. Create a new API token with appropriate permissions")
-    
-    def _show_plan_retrieval_troubleshooting(self, error_message: str) -> None:
-        """
-        Show troubleshooting guidance for plan retrieval issues
-        
-        Args:
-            error_message: The plan retrieval error message
-        """
-        with st.expander("🔧 **Plan Retrieval Troubleshooting**", expanded=True):
-            st.write(f"**Error:** {error_message}")
-            st.write("")
-            st.write("**Common solutions:**")
-            
-            if "not found" in error_message.lower():
-                st.write("• Verify workspace ID format (should start with 'ws-')")
-                st.write("• Verify run ID format (should start with 'run-')")
-                st.write("• Check if the run exists in the specified workspace")
-            elif "json output" in error_message.lower():
-                st.write("• Ensure the run has completed successfully")
-                st.write("• Verify the plan has structured JSON output available")
-                st.write("• Some older runs may not have JSON output")
-            elif "access denied" in error_message.lower():
-                st.write("• Verify token has read access to the workspace")
-                st.write("• Check workspace permissions")
-            else:
-                st.write("• Verify workspace and run IDs are correct")
-                st.write("• Ensure the run has completed")
-                st.write("• Check workspace permissions")
+
     
     def _show_plan_summary(self, plan_data: Dict[str, Any]) -> None:
         """

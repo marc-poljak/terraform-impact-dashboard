@@ -13,6 +13,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from utils.credential_manager import CredentialManager, TFEConfig
+from utils.tfe_error_handler import TFEErrorHandler, TFEErrorContext, TFEErrorType
 
 
 class TFEClient:
@@ -34,10 +35,11 @@ class TFEClient:
         self._session: Optional[requests.Session] = None
         self._config: Optional[TFEConfig] = None
         self._authenticated = False
+        self.error_handler = TFEErrorHandler()
     
-    def authenticate(self, server: str, token: str, organization: str) -> bool:
+    def authenticate(self, server: str, token: str, organization: str) -> Tuple[bool, Optional[str]]:
         """
-        Authenticate with TFE server.
+        Authenticate with TFE server with comprehensive error handling.
         
         Args:
             server: TFE server URL
@@ -45,18 +47,16 @@ class TFEClient:
             organization: Organization name
             
         Returns:
-            True if authentication successful, False otherwise
+            Tuple of (success, error_message)
         """
-        try:
+        # Normalize server URL
+        if not server.startswith(('http://', 'https://')):
+            server = f"https://{server}"
+        server = server.rstrip('/')
+        
+        def _authenticate_operation():
             # Create session with retry strategy
             self._session = self._create_session()
-            
-            # Normalize server URL
-            if not server.startswith(('http://', 'https://')):
-                server = f"https://{server}"
-            
-            # Remove trailing slash
-            server = server.rstrip('/')
             
             # Test authentication with account details endpoint
             url = f"{server}/api/v2/account/details"
@@ -71,19 +71,31 @@ class TFEClient:
                 self._authenticated = True
                 return True
             elif response.status_code == 401:
-                return False
+                raise requests.exceptions.HTTPError("Authentication failed", response=response)
             else:
-                # Other errors should be handled by caller
                 response.raise_for_status()
-                return False
-                
-        except requests.exceptions.RequestException:
+                return True
+        
+        # Create error context
+        context = TFEErrorContext(
+            error_type=TFEErrorType.UNKNOWN,
+            original_error=None,
+            operation="authentication",
+            server_url=server
+        )
+        
+        # Execute with retry logic
+        result, error_message = self.error_handler.retry_with_backoff(_authenticate_operation, context)
+        
+        if result:
+            return True, None
+        else:
             self._authenticated = False
-            return False
+            return False, error_message
     
     def get_plan_json(self, workspace_id: str, run_id: str) -> Tuple[Optional[Dict], Optional[str]]:
         """
-        Retrieve plan JSON data from TFE.
+        Retrieve plan JSON data from TFE with comprehensive error handling.
         
         Args:
             workspace_id: Workspace identifier
@@ -100,42 +112,61 @@ class TFEClient:
         if not config:
             return None, "No TFE configuration available"
         
-        try:
+        # Validate workspace and run ID formats
+        workspace_valid, workspace_error = self.error_handler.validate_workspace_id(workspace_id)
+        if not workspace_valid:
+            return None, workspace_error
+        
+        run_valid, run_error = self.error_handler.validate_run_id(run_id)
+        if not run_valid:
+            return None, run_error
+        
+        def _get_plan_operation():
             # Step 1: Get run details to find the plan
-            run_data, error = self._get_run_details(run_id)
+            run_data, error = self._get_run_details_with_retry(run_id)
             if error:
-                return None, error
+                raise Exception(error)
             
             # Step 2: Extract plan ID from run data
             plan_id = self._extract_plan_id(run_data)
             if not plan_id:
-                return None, "No plan found in run data"
+                raise Exception("No plan found in run data")
             
             # Step 3: Get plan details to find JSON output link
-            plan_data, error = self._get_plan_details(plan_id)
+            plan_data, error = self._get_plan_details_with_retry(plan_id)
             if error:
-                return None, error
+                raise Exception(error)
             
             # Step 4: Extract and download JSON output
             json_output_url = self._extract_json_output_url(plan_data)
             if not json_output_url:
-                return None, "No structured JSON output available for this plan"
+                raise Exception("No structured JSON output available for this plan")
             
             # Step 5: Download the JSON output
-            json_data, error = self._download_json_output(json_output_url)
+            json_data, error = self._download_json_output_with_retry(json_output_url)
             if error:
-                return None, error
+                raise Exception(error)
             
-            return json_data, None
-            
-        except requests.exceptions.RequestException as e:
-            return None, f"API request failed: {str(e)}"
-        except Exception as e:
-            return None, f"Unexpected error: {str(e)}"
+            return json_data
+        
+        # Create error context
+        context = TFEErrorContext(
+            error_type=TFEErrorType.UNKNOWN,
+            original_error=None,
+            operation="plan_retrieval",
+            server_url=config.tfe_server,
+            workspace_id=workspace_id,
+            run_id=run_id
+        )
+        
+        # Execute with retry logic
+        result, error_message = self.error_handler.retry_with_backoff(_get_plan_operation, context)
+        
+        return result, error_message
     
     def validate_connection(self) -> Tuple[bool, str]:
         """
-        Test connection to TFE server.
+        Test connection to TFE server with comprehensive error handling.
         
         Returns:
             Tuple of (is_valid, message)
@@ -144,12 +175,12 @@ class TFEClient:
         if not config:
             return False, "No TFE configuration available"
         
-        try:
-            # Test basic connectivity
-            server = config.tfe_server
-            if not server.startswith(('http://', 'https://')):
-                server = f"https://{server}"
-            
+        # Normalize server URL
+        server = config.tfe_server
+        if not server.startswith(('http://', 'https://')):
+            server = f"https://{server}"
+        
+        def _validate_connection_operation():
             # Create a simple session for testing
             session = requests.Session()
             session.verify = config.verify_ssl
@@ -158,18 +189,38 @@ class TFEClient:
             response = session.get(f"{server}/api/v2", timeout=config.timeout)
             
             if response.status_code in [200, 401]:  # 401 is expected without auth
+                return True
+            else:
+                raise requests.exceptions.HTTPError(f"Server returned status code: {response.status_code}", response=response)
+        
+        # Create error context
+        context = TFEErrorContext(
+            error_type=TFEErrorType.UNKNOWN,
+            original_error=None,
+            operation="connection_validation",
+            server_url=server
+        )
+        
+        try:
+            result, error_message = self.error_handler.retry_with_backoff(_validate_connection_operation, context)
+            
+            if result:
                 return True, "Connection successful"
             else:
-                return False, f"Server returned status code: {response.status_code}"
+                # Show detailed error with troubleshooting
+                error_type = self.error_handler.classify_error(context.original_error, "connection_validation")
+                self.error_handler.show_error_with_troubleshooting(error_type, error_message, context)
+                return False, error_message
                 
-        except requests.exceptions.SSLError:
-            return False, "SSL verification failed. Check server certificate or disable SSL verification."
-        except requests.exceptions.ConnectionError:
-            return False, "Cannot connect to TFE server. Check server URL and network connectivity."
-        except requests.exceptions.Timeout:
-            return False, "Connection timeout. Server may be slow or unreachable."
         except Exception as e:
-            return False, f"Connection test failed: {str(e)}"
+            error_type = self.error_handler.classify_error(e, "connection_validation")
+            context.original_error = e
+            context.error_type = error_type
+            
+            should_retry, error_message = self.error_handler.handle_error(context)
+            self.error_handler.show_error_with_troubleshooting(error_type, error_message, context)
+            
+            return False, error_message
     
     def _create_session(self) -> requests.Session:
         """Create HTTP session with retry strategy."""
@@ -194,8 +245,8 @@ class TFEClient:
         
         return session
     
-    def _get_run_details(self, run_id: str) -> Tuple[Optional[Dict], Optional[str]]:
-        """Get run details from TFE API."""
+    def _get_run_details_with_retry(self, run_id: str) -> Tuple[Optional[Dict], Optional[str]]:
+        """Get run details from TFE API with error handling."""
         config = self.credential_manager.get_config()
         if not config:
             return None, "No configuration available"
@@ -215,11 +266,14 @@ class TFEClient:
         if response.status_code == 200:
             return response.json(), None
         elif response.status_code == 404:
-            return None, f"Run {run_id} not found"
+            raise requests.exceptions.HTTPError(f"Run {run_id} not found", response=response)
         elif response.status_code == 403:
-            return None, "Access denied. Check permissions for this run."
+            raise requests.exceptions.HTTPError("Access denied. Check permissions for this run.", response=response)
+        elif response.status_code == 429:
+            raise requests.exceptions.HTTPError("Rate limit exceeded", response=response)
         else:
-            return None, f"Failed to get run details: HTTP {response.status_code}"
+            response.raise_for_status()
+            return response.json(), None
     
     def _extract_plan_id(self, run_data: Dict) -> Optional[str]:
         """Extract plan ID from run data."""
@@ -234,8 +288,8 @@ class TFEClient:
         except (KeyError, TypeError):
             return None
     
-    def _get_plan_details(self, plan_id: str) -> Tuple[Optional[Dict], Optional[str]]:
-        """Get plan details from TFE API."""
+    def _get_plan_details_with_retry(self, plan_id: str) -> Tuple[Optional[Dict], Optional[str]]:
+        """Get plan details from TFE API with error handling."""
         config = self.credential_manager.get_config()
         if not config:
             return None, "No configuration available"
@@ -255,9 +309,14 @@ class TFEClient:
         if response.status_code == 200:
             return response.json(), None
         elif response.status_code == 404:
-            return None, f"Plan {plan_id} not found"
+            raise requests.exceptions.HTTPError(f"Plan {plan_id} not found", response=response)
+        elif response.status_code == 403:
+            raise requests.exceptions.HTTPError("Access denied. Check permissions for this plan.", response=response)
+        elif response.status_code == 429:
+            raise requests.exceptions.HTTPError("Rate limit exceeded", response=response)
         else:
-            return None, f"Failed to get plan details: HTTP {response.status_code}"
+            response.raise_for_status()
+            return response.json(), None
     
     def _extract_json_output_url(self, plan_data: Dict) -> Optional[str]:
         """Extract JSON output URL from plan data."""
@@ -267,8 +326,8 @@ class TFEClient:
         except (KeyError, TypeError):
             return None
     
-    def _download_json_output(self, json_url: str) -> Tuple[Optional[Dict], Optional[str]]:
-        """Download and parse JSON output from URL."""
+    def _download_json_output_with_retry(self, json_url: str) -> Tuple[Optional[Dict], Optional[str]]:
+        """Download and parse JSON output from URL with error handling."""
         config = self.credential_manager.get_config()
         if not config:
             return None, "No configuration available"
@@ -283,9 +342,16 @@ class TFEClient:
             try:
                 return response.json(), None
             except json.JSONDecodeError as e:
-                return None, f"Failed to parse JSON output: {str(e)}"
+                raise Exception(f"Failed to parse JSON output: {str(e)}")
+        elif response.status_code == 403:
+            raise requests.exceptions.HTTPError("Access denied. Check permissions for plan JSON output.", response=response)
+        elif response.status_code == 404:
+            raise requests.exceptions.HTTPError("Plan JSON output not found or expired.", response=response)
+        elif response.status_code == 429:
+            raise requests.exceptions.HTTPError("Rate limit exceeded", response=response)
         else:
-            return None, f"Failed to download JSON output: HTTP {response.status_code}"
+            response.raise_for_status()
+            return response.json(), None
     
     def close(self):
         """Close the HTTP session."""

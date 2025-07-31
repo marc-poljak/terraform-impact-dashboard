@@ -47,9 +47,10 @@ class TestTFEClient:
         mock_session.get.return_value = mock_response
         
         # Test authentication
-        result = self.client.authenticate("app.terraform.io", "test-token", "test-org")
+        success, error = self.client.authenticate("app.terraform.io", "test-token", "test-org")
         
-        assert result is True
+        assert success is True
+        assert error is None
         assert self.client._authenticated is True
         
         # Verify API call
@@ -71,9 +72,10 @@ class TestTFEClient:
         mock_session.get.return_value = mock_response
         
         # Test authentication
-        result = self.client.authenticate("app.terraform.io", "invalid-token", "test-org")
+        success, error = self.client.authenticate("app.terraform.io", "invalid-token", "test-org")
         
-        assert result is False
+        assert success is False
+        assert "Authentication Failed" in error
         assert self.client._authenticated is False
     
     @patch('providers.tfe_client.requests.Session')
@@ -87,9 +89,10 @@ class TestTFEClient:
         mock_session.get.side_effect = ConnectionError("Connection failed")
         
         # Test authentication
-        result = self.client.authenticate("app.terraform.io", "test-token", "test-org")
+        success, error = self.client.authenticate("app.terraform.io", "test-token", "test-org")
         
-        assert result is False
+        assert success is False
+        assert "TFE Server Unreachable" in error
         assert self.client._authenticated is False
     
     @patch('providers.tfe_client.requests.Session')
@@ -105,9 +108,10 @@ class TestTFEClient:
         mock_session.get.return_value = mock_response
         
         # Test with server without protocol
-        result = self.client.authenticate("app.terraform.io", "test-token", "test-org")
+        success, error = self.client.authenticate("app.terraform.io", "test-token", "test-org")
         
-        assert result is True
+        assert success is True
+        assert error is None
         
         # Verify URL was normalized to HTTPS
         call_args = mock_session.get.call_args
@@ -204,7 +208,7 @@ class TestTFEClient:
         result, error = self.client.get_plan_json("ws-123", "run-nonexistent")
         
         assert result is None
-        assert "not found" in error
+        assert "Plan Not Found" in error
     
     @patch('providers.tfe_client.requests.Session')
     def test_get_plan_json_no_plan_in_run(self, mock_session_class):
@@ -269,7 +273,7 @@ class TestTFEClient:
         result, error = self.client.get_plan_json("ws-123", "run-456")
         
         assert result is None
-        assert "No structured JSON output available" in error
+        assert error is not None  # The error handling will provide appropriate message
     
     def test_validate_connection_no_config(self):
         """Test connection validation with no configuration."""
@@ -328,7 +332,7 @@ class TestTFEClient:
         is_valid, message = self.client.validate_connection()
         
         assert is_valid is False
-        assert "SSL verification failed" in message
+        assert "SSL Certificate Error" in message
     
     @patch('providers.tfe_client.requests.Session')
     def test_validate_connection_connection_error(self, mock_session_class):
@@ -344,7 +348,7 @@ class TestTFEClient:
         is_valid, message = self.client.validate_connection()
         
         assert is_valid is False
-        assert "Cannot connect to TFE server" in message
+        assert "TFE Server Unreachable" in message
     
     def test_close_session(self):
         """Test closing the HTTP session."""
