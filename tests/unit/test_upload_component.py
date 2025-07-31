@@ -55,13 +55,14 @@ class TestUploadComponent:
         # Verify it returns None when no file is uploaded
         assert result is None
     
+    @patch('streamlit.tabs')
     @patch('streamlit.file_uploader')
     @patch('streamlit.markdown')
     @patch('streamlit.columns')
     @patch('streamlit.metric')
     @patch('components.upload_section.ErrorHandler')
     def test_render_with_uploaded_file(self, mock_error_handler, mock_metric, 
-                                      mock_columns, mock_markdown, mock_file_uploader):
+                                      mock_columns, mock_markdown, mock_file_uploader, mock_tabs):
         """Test render method when a file is uploaded"""
         # Mock the error handler
         mock_error_handler.return_value = Mock()
@@ -73,6 +74,16 @@ class TestUploadComponent:
         mock_file.getvalue.return_value = b'{"test": "data"}'
         
         mock_file_uploader.return_value = mock_file
+        
+        # Mock tabs to support context manager protocol
+        mock_tab1 = Mock()
+        mock_tab1.__enter__ = Mock(return_value=mock_tab1)
+        mock_tab1.__exit__ = Mock(return_value=None)
+        mock_tab2 = Mock()
+        mock_tab2.__enter__ = Mock(return_value=mock_tab2)
+        mock_tab2.__exit__ = Mock(return_value=None)
+        mock_tabs.return_value = [mock_tab1, mock_tab2]
+        
         # Mock columns to support context manager protocol
         mock_col1 = Mock()
         mock_col1.__enter__ = Mock(return_value=mock_col1)

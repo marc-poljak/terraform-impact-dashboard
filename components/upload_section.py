@@ -39,10 +39,14 @@ class UploadComponent:
         plan_data = None
         
         with tab1:
-            plan_data = self._render_file_upload_tab()
+            file_data = self._render_file_upload_tab()
+            if file_data is not None:
+                plan_data = file_data
         
         with tab2:
-            plan_data = self._render_tfe_integration_tab()
+            tfe_data = self._render_tfe_integration_tab()
+            if tfe_data is not None:
+                plan_data = tfe_data
         
         st.markdown('</div>', unsafe_allow_html=True)
         return plan_data
