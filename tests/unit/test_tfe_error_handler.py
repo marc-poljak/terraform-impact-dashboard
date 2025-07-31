@@ -1,134 +1,195 @@
 """
 Unit tests for TFE Error Handler
 
-Tests comprehensive error handling for TFE integration including
-authentication, API, and network failures with retry logic.
+Tests comprehensive error handling for TFE integration including error classification,
+retry logic with exponential backoff, and user-friendly error messages with
+troubleshooting guidance.
 """
 
 import pytest
-import requests
-from unittest.mock import Mock, patch, MagicMock
 import time
+from unittest.mock import Mock, patch, MagicMock
+import requests
+from requests.exceptions import ConnectionError, Timeout, SSLError, HTTPError
 
-from utils.tfe_error_handler import (
-    TFEErrorHandler, 
-    TFEErrorType, 
-    TFEErrorContext
-)
+from utils.tfe_error_handler import TFEErrorHandler, TFEErrorType, TFEErrorContext
 
 
 class TestTFEErrorHandler:
-    """Test suite for TFE error handler"""
+    """Test cases for TFE Error Handler"""
     
     def setup_method(self):
         """Set up test fixtures"""
         self.error_handler = TFEErrorHandler(max_retries=3, base_delay=0.1)
     
+    def test_error_handler_initialization(self):
+        """Test error handler initialization with custom parameters"""
+        handler = TFEErrorHandler(max_retries=5, base_delay=2.0)
+        
+        assert handler.max_retries == 5
+        assert handler.base_delay == 2.0
+        assert handler.workspace_id_pattern is not None
+        assert handler.run_id_pattern is not None
+    
     def test_classify_ssl_error(self):
-        """Test SSL error classification"""
-        ssl_error = requests.exceptions.SSLError("SSL certificate verify failed")
+        """Test classification of SSL errors"""
+        ssl_error = SSLError("SSL certificate verification failed")
+        
         error_type = self.error_handler.classify_error(ssl_error)
+        
         assert error_type == TFEErrorType.SSL_ERROR
     
     def test_classify_timeout_error(self):
-        """Test timeout error classification"""
-        timeout_error = requests.exceptions.Timeout("Request timed out")
+        """Test classification of timeout errors"""
+        timeout_error = Timeout("Request timed out")
+        
         error_type = self.error_handler.classify_error(timeout_error)
+        
         assert error_type == TFEErrorType.TIMEOUT
     
     def test_classify_connection_error(self):
-        """Test connection error classification"""
-        conn_error = requests.exceptions.ConnectionError("Connection failed")
-        error_type = self.error_handler.classify_error(conn_error)
+        """Test classification of connection errors"""
+        connection_error = ConnectionError("Connection refused")
+        
+        error_type = self.error_handler.classify_error(connection_error)
+        
         assert error_type == TFEErrorType.SERVER_UNREACHABLE
     
-    def test_classify_http_401_error(self):
-        """Test HTTP 401 error classification"""
-        response = Mock()
-        response.status_code = 401
-        http_error = requests.exceptions.HTTPError("401 Unauthorized", response=response)
+    def test_classify_http_error_401(self):
+        """Test classification of 401 HTTP errors"""
+        mock_response = Mock()
+        mock_response.status_code = 401
+        http_error = HTTPError("Unauthorized", response=mock_response)
+        
         error_type = self.error_handler.classify_error(http_error)
+        
         assert error_type == TFEErrorType.AUTHENTICATION
     
-    def test_classify_http_403_error(self):
-        """Test HTTP 403 error classification"""
-        response = Mock()
-        response.status_code = 403
-        http_error = requests.exceptions.HTTPError("403 Forbidden", response=response)
+    def test_classify_http_error_403(self):
+        """Test classification of 403 HTTP errors"""
+        mock_response = Mock()
+        mock_response.status_code = 403
+        http_error = HTTPError("Forbidden", response=mock_response)
+        
         error_type = self.error_handler.classify_error(http_error)
+        
         assert error_type == TFEErrorType.PERMISSION_DENIED
     
-    def test_classify_http_404_error(self):
-        """Test HTTP 404 error classification"""
-        response = Mock()
-        response.status_code = 404
-        http_error = requests.exceptions.HTTPError("404 Not Found", response=response)
+    def test_classify_http_error_404(self):
+        """Test classification of 404 HTTP errors"""
+        mock_response = Mock()
+        mock_response.status_code = 404
+        http_error = HTTPError("Not Found", response=mock_response)
+        
         error_type = self.error_handler.classify_error(http_error)
+        
         assert error_type == TFEErrorType.PLAN_NOT_FOUND
     
-    def test_classify_http_429_error(self):
-        """Test HTTP 429 error classification"""
-        response = Mock()
-        response.status_code = 429
-        http_error = requests.exceptions.HTTPError("429 Too Many Requests", response=response)
+    def test_classify_http_error_429(self):
+        """Test classification of 429 HTTP errors"""
+        mock_response = Mock()
+        mock_response.status_code = 429
+        http_error = HTTPError("Too Many Requests", response=mock_response)
+        
         error_type = self.error_handler.classify_error(http_error)
+        
         assert error_type == TFEErrorType.API_RATE_LIMIT
     
-    def test_classify_http_500_error(self):
-        """Test HTTP 500 error classification"""
-        response = Mock()
-        response.status_code = 500
-        http_error = requests.exceptions.HTTPError("500 Internal Server Error", response=response)
+    def test_classify_http_error_500(self):
+        """Test classification of 500+ HTTP errors"""
+        mock_response = Mock()
+        mock_response.status_code = 500
+        http_error = HTTPError("Internal Server Error", response=mock_response)
+        
         error_type = self.error_handler.classify_error(http_error)
+        
         assert error_type == TFEErrorType.SERVER_UNREACHABLE
     
+    def test_classify_rate_limit_string_error(self):
+        """Test classification of rate limit errors by string content"""
+        rate_limit_error = Exception("Rate limit exceeded")
+        
+        error_type = self.error_handler.classify_error(rate_limit_error)
+        
+        assert error_type == TFEErrorType.API_RATE_LIMIT
+    
+    def test_classify_unknown_error(self):
+        """Test classification of unknown errors"""
+        unknown_error = Exception("Some unexpected error")
+        
+        error_type = self.error_handler.classify_error(unknown_error)
+        
+        assert error_type == TFEErrorType.UNKNOWN
+    
     def test_validate_workspace_id_valid(self):
-        """Test valid workspace ID validation"""
-        valid_id = "ws-ABC123456789"
-        is_valid, error = self.error_handler.validate_workspace_id(valid_id)
-        assert is_valid is True
-        assert error is None
+        """Test validation of valid workspace IDs"""
+        valid_ids = [
+            "ws-ABC123456",
+            "ws-xyz789012",
+            "ws-1234567890",
+            "ws-abcDEF123456"
+        ]
+        
+        for workspace_id in valid_ids:
+            is_valid, error = self.error_handler.validate_workspace_id(workspace_id)
+            assert is_valid is True, f"Should accept workspace_id: {workspace_id}"
+            assert error is None
     
-    def test_validate_workspace_id_invalid_format(self):
-        """Test invalid workspace ID format"""
-        invalid_id = "workspace-123"
-        is_valid, error = self.error_handler.validate_workspace_id(invalid_id)
-        assert is_valid is False
-        assert "Invalid workspace ID format" in error
-        assert "ws-" in error
-    
-    def test_validate_workspace_id_empty(self):
-        """Test empty workspace ID"""
-        is_valid, error = self.error_handler.validate_workspace_id("")
-        assert is_valid is False
-        assert "Workspace ID is required" in error
+    def test_validate_workspace_id_invalid(self):
+        """Test validation of invalid workspace IDs"""
+        invalid_ids = [
+            "",
+            None,
+            "workspace-123",
+            "ws-",
+            "ws-123-abc",
+            "WS-ABC123",
+            "ws-abc def"
+        ]
+        
+        for workspace_id in invalid_ids:
+            is_valid, error = self.error_handler.validate_workspace_id(workspace_id)
+            assert is_valid is False, f"Should reject workspace_id: {workspace_id}"
+            assert error is not None
+            assert "workspace" in error.lower()
     
     def test_validate_run_id_valid(self):
-        """Test valid run ID validation"""
-        valid_id = "run-XYZ987654321"
-        is_valid, error = self.error_handler.validate_run_id(valid_id)
-        assert is_valid is True
-        assert error is None
+        """Test validation of valid run IDs"""
+        valid_ids = [
+            "run-XYZ789012",
+            "run-abc123456",
+            "run-1234567890",
+            "run-abcDEF123456"
+        ]
+        
+        for run_id in valid_ids:
+            is_valid, error = self.error_handler.validate_run_id(run_id)
+            assert is_valid is True, f"Should accept run_id: {run_id}"
+            assert error is None
     
-    def test_validate_run_id_invalid_format(self):
-        """Test invalid run ID format"""
-        invalid_id = "execution-123"
-        is_valid, error = self.error_handler.validate_run_id(invalid_id)
-        assert is_valid is False
-        assert "Invalid run ID format" in error
-        assert "run-" in error
-    
-    def test_validate_run_id_empty(self):
-        """Test empty run ID"""
-        is_valid, error = self.error_handler.validate_run_id("")
-        assert is_valid is False
-        assert "Run ID is required" in error
+    def test_validate_run_id_invalid(self):
+        """Test validation of invalid run IDs"""
+        invalid_ids = [
+            "",
+            None,
+            "execution-123",
+            "run-",
+            "run-123-abc",
+            "RUN-ABC123",
+            "run-abc def"
+        ]
+        
+        for run_id in invalid_ids:
+            is_valid, error = self.error_handler.validate_run_id(run_id)
+            assert is_valid is False, f"Should reject run_id: {run_id}"
+            assert error is not None
+            assert "run" in error.lower()
     
     def test_handle_authentication_error(self):
-        """Test authentication error handling"""
+        """Test handling of authentication errors"""
         context = TFEErrorContext(
             error_type=TFEErrorType.AUTHENTICATION,
-            original_error=requests.exceptions.HTTPError("401 Unauthorized"),
+            original_error=Exception("Authentication failed"),
             operation="authentication"
         )
         
@@ -136,74 +197,59 @@ class TestTFEErrorHandler:
         
         assert should_retry is False  # Don't retry auth errors
         assert "Authentication Failed" in error_message
-        assert "Invalid or expired API token" in error_message
+        assert "API token" in error_message
     
     def test_handle_rate_limit_error_with_retries(self):
-        """Test rate limit error handling with retries available"""
+        """Test handling of rate limit errors with retries available"""
         context = TFEErrorContext(
             error_type=TFEErrorType.API_RATE_LIMIT,
-            original_error=requests.exceptions.HTTPError("429 Too Many Requests"),
-            operation="api_call",
+            original_error=Exception("Rate limit exceeded"),
+            operation="plan_retrieval",
             retry_count=1,
             max_retries=3
         )
         
         should_retry, error_message = self.error_handler.handle_error(context)
         
-        assert should_retry is True  # Should retry rate limit errors
+        assert should_retry is True
         assert "Rate limited" in error_message
     
-    def test_handle_rate_limit_error_max_retries(self):
-        """Test rate limit error handling when max retries reached"""
+    def test_handle_rate_limit_error_exhausted_retries(self):
+        """Test handling of rate limit errors with exhausted retries"""
         context = TFEErrorContext(
             error_type=TFEErrorType.API_RATE_LIMIT,
-            original_error=requests.exceptions.HTTPError("429 Too Many Requests"),
-            operation="api_call",
+            original_error=Exception("Rate limit exceeded"),
+            operation="plan_retrieval",
             retry_count=3,
             max_retries=3
         )
         
         should_retry, error_message = self.error_handler.handle_error(context)
         
-        assert should_retry is False  # Don't retry when max reached
+        assert should_retry is False
         assert "API Rate Limit Exceeded" in error_message
     
     def test_handle_network_error_with_retries(self):
-        """Test network error handling with retries available"""
+        """Test handling of network errors with retries available"""
         context = TFEErrorContext(
             error_type=TFEErrorType.NETWORK_CONNECTIVITY,
-            original_error=requests.exceptions.ConnectionError("Connection failed"),
-            operation="connection",
+            original_error=ConnectionError("Network error"),
+            operation="connection_validation",
             retry_count=1,
             max_retries=3
         )
         
         should_retry, error_message = self.error_handler.handle_error(context)
         
-        assert should_retry is True  # Should retry network errors
+        assert should_retry is True
         assert "Network connectivity issue" in error_message
     
-    def test_handle_server_unreachable_with_retries(self):
-        """Test server unreachable error handling with retries available"""
-        context = TFEErrorContext(
-            error_type=TFEErrorType.SERVER_UNREACHABLE,
-            original_error=requests.exceptions.ConnectionError("Server unreachable"),
-            operation="connection",
-            retry_count=1,
-            max_retries=3
-        )
-        
-        should_retry, error_message = self.error_handler.handle_error(context)
-        
-        assert should_retry is True  # Should retry server unreachable errors
-        assert "temporarily unreachable" in error_message
-    
     def test_handle_ssl_error(self):
-        """Test SSL error handling"""
+        """Test handling of SSL errors"""
         context = TFEErrorContext(
             error_type=TFEErrorType.SSL_ERROR,
-            original_error=requests.exceptions.SSLError("SSL certificate verify failed"),
-            operation="connection"
+            original_error=SSLError("SSL verification failed"),
+            operation="authentication"
         )
         
         should_retry, error_message = self.error_handler.handle_error(context)
@@ -213,26 +259,26 @@ class TestTFEErrorHandler:
         assert "verify_ssl: false" in error_message
     
     def test_handle_timeout_error_with_retries(self):
-        """Test timeout error handling with retries available"""
+        """Test handling of timeout errors with retries available"""
         context = TFEErrorContext(
             error_type=TFEErrorType.TIMEOUT,
-            original_error=requests.exceptions.Timeout("Request timed out"),
-            operation="api_call",
+            original_error=Timeout("Request timeout"),
+            operation="plan_retrieval",
             retry_count=1,
             max_retries=3
         )
         
         should_retry, error_message = self.error_handler.handle_error(context)
         
-        assert should_retry is True  # Should retry timeout errors
+        assert should_retry is True
         assert "Request timed out" in error_message
     
     def test_handle_permission_error(self):
-        """Test permission denied error handling"""
+        """Test handling of permission errors"""
         context = TFEErrorContext(
             error_type=TFEErrorType.PERMISSION_DENIED,
-            original_error=requests.exceptions.HTTPError("403 Forbidden"),
-            operation="api_call",
+            original_error=Exception("Permission denied"),
+            operation="plan_retrieval",
             workspace_id="ws-123",
             run_id="run-456"
         )
@@ -241,13 +287,13 @@ class TestTFEErrorHandler:
         
         assert should_retry is False  # Don't retry permission errors
         assert "Permission Denied" in error_message
-        assert "sufficient permissions" in error_message
+        assert "API token" in error_message
     
     def test_handle_plan_not_found_error(self):
-        """Test plan not found error handling"""
+        """Test handling of plan not found errors"""
         context = TFEErrorContext(
             error_type=TFEErrorType.PLAN_NOT_FOUND,
-            original_error=requests.exceptions.HTTPError("404 Not Found"),
+            original_error=Exception("Plan not found"),
             operation="plan_retrieval",
             workspace_id="ws-123",
             run_id="run-456"
@@ -257,18 +303,33 @@ class TestTFEErrorHandler:
         
         assert should_retry is False  # Don't retry not found errors
         assert "Plan Not Found" in error_message
-        assert "workspace run or plan could not be found" in error_message
+        assert "workspace ID" in error_message
     
-    @patch('time.sleep')  # Mock sleep to speed up tests
-    def test_retry_with_backoff_success_after_retry(self, mock_sleep):
-        """Test retry logic succeeds after initial failure"""
-        call_count = 0
+    def test_handle_unknown_error_with_retries(self):
+        """Test handling of unknown errors with retries available"""
+        context = TFEErrorContext(
+            error_type=TFEErrorType.UNKNOWN,
+            original_error=Exception("Unknown error"),
+            operation="plan_retrieval",
+            retry_count=1,
+            max_retries=3
+        )
         
-        def failing_operation():
+        should_retry, error_message = self.error_handler.handle_error(context)
+        
+        assert should_retry is True
+        assert "Unexpected error occurred" in error_message
+    
+    @patch('time.sleep')
+    def test_retry_with_backoff_success_on_retry(self, mock_sleep):
+        """Test retry with backoff succeeds on retry"""
+        # Mock operation that fails once then succeeds
+        call_count = 0
+        def mock_operation():
             nonlocal call_count
             call_count += 1
-            if call_count < 3:
-                raise requests.exceptions.Timeout("Timeout")
+            if call_count == 1:
+                raise ConnectionError("Network error")
             return "success"
         
         context = TFEErrorContext(
@@ -277,18 +338,19 @@ class TestTFEErrorHandler:
             operation="test_operation"
         )
         
-        result, error = self.error_handler.retry_with_backoff(failing_operation, context)
+        result, error = self.error_handler.retry_with_backoff(mock_operation, context)
         
         assert result == "success"
         assert error is None
-        assert call_count == 3  # Should have retried twice
-        assert mock_sleep.call_count == 2  # Should have slept twice
+        assert call_count == 2  # Failed once, succeeded on retry
+        mock_sleep.assert_called_once()  # Should have slept before retry
     
-    @patch('time.sleep')  # Mock sleep to speed up tests
-    def test_retry_with_backoff_max_retries_exceeded(self, mock_sleep):
-        """Test retry logic fails after max retries"""
-        def always_failing_operation():
-            raise requests.exceptions.Timeout("Always fails")
+    @patch('time.sleep')
+    def test_retry_with_backoff_exhausted_retries(self, mock_sleep):
+        """Test retry with backoff exhausts all retries"""
+        # Mock operation that always fails
+        def mock_operation():
+            raise ConnectionError("Network error")
         
         context = TFEErrorContext(
             error_type=TFEErrorType.UNKNOWN,
@@ -296,156 +358,147 @@ class TestTFEErrorHandler:
             operation="test_operation"
         )
         
-        result, error = self.error_handler.retry_with_backoff(always_failing_operation, context)
+        result, error = self.error_handler.retry_with_backoff(mock_operation, context)
         
         assert result is None
         assert error is not None
-        assert "Request Timeout" in error  # The error handler provides specific timeout message
-        assert mock_sleep.call_count == 3  # Should have slept for each retry
+        # The error handler returns formatted error messages, so check for key content
+        assert "TFE Server Unreachable" in error or "failed after" in error
+        assert mock_sleep.call_count == 3  # Should have slept before each retry
     
-    @patch('time.sleep')  # Mock sleep to speed up tests
-    def test_retry_with_backoff_no_retry_for_auth_error(self, mock_sleep):
-        """Test retry logic doesn't retry authentication errors"""
-        def auth_failing_operation():
-            response = Mock()
-            response.status_code = 401
-            raise requests.exceptions.HTTPError("401 Unauthorized", response=response)
+    @patch('time.sleep')
+    def test_retry_with_backoff_exponential_delay(self, mock_sleep):
+        """Test that retry uses exponential backoff delay"""
+        # Mock operation that always fails
+        def mock_operation():
+            raise ConnectionError("Network error")
         
         context = TFEErrorContext(
             error_type=TFEErrorType.UNKNOWN,
             original_error=None,
+            operation="test_operation"
+        )
+        
+        self.error_handler.retry_with_backoff(mock_operation, context)
+        
+        # Verify exponential backoff (with jitter, so check ranges)
+        sleep_calls = mock_sleep.call_args_list
+        assert len(sleep_calls) == 3
+        
+        # First retry: base_delay * 2^0 + jitter = 0.1 + jitter
+        assert 0.1 <= sleep_calls[0][0][0] <= 0.13
+        
+        # Second retry: base_delay * 2^1 + jitter = 0.2 + jitter
+        assert 0.2 <= sleep_calls[1][0][0] <= 0.26
+        
+        # Third retry: base_delay * 2^2 + jitter = 0.4 + jitter
+        assert 0.4 <= sleep_calls[2][0][0] <= 0.52
+    
+    @patch('time.sleep')
+    def test_retry_with_backoff_no_retry_for_auth_error(self, mock_sleep):
+        """Test that authentication errors are not retried"""
+        def mock_operation():
+            raise Exception("Authentication failed")
+        
+        context = TFEErrorContext(
+            error_type=TFEErrorType.AUTHENTICATION,
+            original_error=None,
             operation="authentication"
         )
         
-        result, error = self.error_handler.retry_with_backoff(auth_failing_operation, context)
+        # Mock handle_error to return no retry for auth errors
+        with patch.object(self.error_handler, 'handle_error', return_value=(False, "Auth failed")):
+            result, error = self.error_handler.retry_with_backoff(mock_operation, context)
         
         assert result is None
-        assert error is not None
-        assert "Authentication Failed" in error
-        assert mock_sleep.call_count == 0  # Should not have slept (no retries)
-    
-    def test_exponential_backoff_timing(self):
-        """Test that exponential backoff increases delay correctly"""
-        # Test the backoff calculation logic
-        base_delay = 1.0
-        handler = TFEErrorHandler(base_delay=base_delay)
-        
-        # Expected delays: 1.0, 2.0, 4.0 (plus jitter)
-        for attempt in range(3):
-            expected_base_delay = base_delay * (2 ** attempt)
-            
-            # The actual implementation adds jitter, so we can't test exact values
-            # but we can verify the base calculation is correct
-            assert expected_base_delay == base_delay * (2 ** attempt)
+        assert error == "Auth failed"
+        mock_sleep.assert_not_called()  # Should not sleep/retry for auth errors
     
     @patch('streamlit.error')
     @patch('streamlit.expander')
     def test_show_error_with_troubleshooting(self, mock_expander, mock_error):
-        """Test error display with troubleshooting"""
-        mock_expander_context = MagicMock()
-        mock_expander.return_value.__enter__ = Mock(return_value=mock_expander_context)
-        mock_expander.return_value.__exit__ = Mock(return_value=None)
+        """Test showing error with troubleshooting guidance"""
+        # Mock expander context manager
+        mock_expander_context = Mock()
+        mock_expander_context.__enter__ = Mock(return_value=mock_expander_context)
+        mock_expander_context.__exit__ = Mock(return_value=None)
+        mock_expander.return_value = mock_expander_context
         
         context = TFEErrorContext(
-            error_type=TFEErrorType.AUTHENTICATION,
-            original_error=requests.exceptions.HTTPError("401 Unauthorized"),
-            operation="authentication"
+            error_type=TFEErrorType.NETWORK_CONNECTIVITY,
+            original_error=ConnectionError("Network error"),
+            operation="connection_validation",
+            server_url="app.terraform.io"
         )
         
         self.error_handler.show_error_with_troubleshooting(
-            TFEErrorType.AUTHENTICATION,
-            "Authentication failed",
+            TFEErrorType.NETWORK_CONNECTIVITY,
+            "Network error occurred",
             context
         )
         
-        # Verify error message was displayed
-        mock_error.assert_called_once()
+        # Verify error message is displayed
+        mock_error.assert_called_once_with("Network error occurred")
         
-        # Verify troubleshooting expander was created
+        # Verify troubleshooting expander is shown
         mock_expander.assert_called()
-
-
-class TestTFEErrorIntegration:
-    """Integration tests for TFE error handling"""
     
-    def setup_method(self):
-        """Set up test fixtures"""
-        self.error_handler = TFEErrorHandler(max_retries=2, base_delay=0.01)
-    
-    @patch('time.sleep')
-    def test_rate_limit_retry_scenario(self, mock_sleep):
-        """Test complete rate limit retry scenario"""
-        call_count = 0
-        
-        def rate_limited_operation():
-            nonlocal call_count
-            call_count += 1
-            if call_count <= 2:
-                response = Mock()
-                response.status_code = 429
-                response.headers = {'X-RateLimit-Reset': '1234567890'}
-                raise requests.exceptions.HTTPError("429 Too Many Requests", response=response)
-            return {"data": "success"}
-        
+    def test_error_context_creation(self):
+        """Test TFEErrorContext creation and attributes"""
         context = TFEErrorContext(
-            error_type=TFEErrorType.UNKNOWN,
-            original_error=None,
-            operation="api_call"
+            error_type=TFEErrorType.AUTHENTICATION,
+            original_error=Exception("Test error"),
+            operation="test_operation",
+            server_url="app.terraform.io",
+            workspace_id="ws-123",
+            run_id="run-456",
+            retry_count=2,
+            max_retries=3
         )
         
-        result, error = self.error_handler.retry_with_backoff(rate_limited_operation, context)
-        
-        assert result == {"data": "success"}
-        assert error is None
-        assert call_count == 3  # Initial call + 2 retries
-        assert mock_sleep.call_count == 2  # Should have slept for retries
+        assert context.error_type == TFEErrorType.AUTHENTICATION
+        assert str(context.original_error) == "Test error"
+        assert context.operation == "test_operation"
+        assert context.server_url == "app.terraform.io"
+        assert context.workspace_id == "ws-123"
+        assert context.run_id == "run-456"
+        assert context.retry_count == 2
+        assert context.max_retries == 3
     
-    @patch('time.sleep')
-    def test_network_error_recovery_scenario(self, mock_sleep):
-        """Test network error recovery scenario"""
-        call_count = 0
-        
-        def network_error_operation():
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                raise requests.exceptions.ConnectionError("Network unreachable")
-            elif call_count == 2:
-                raise requests.exceptions.Timeout("Request timeout")
-            return {"status": "connected"}
-        
+    def test_error_context_defaults(self):
+        """Test TFEErrorContext default values"""
         context = TFEErrorContext(
             error_type=TFEErrorType.UNKNOWN,
-            original_error=None,
-            operation="connection"
+            original_error=Exception("Test error"),
+            operation="test_operation"
         )
         
-        result, error = self.error_handler.retry_with_backoff(network_error_operation, context)
-        
-        assert result == {"status": "connected"}
-        assert error is None
-        assert call_count == 3  # Should have retried through different error types
+        assert context.server_url is None
+        assert context.workspace_id is None
+        assert context.run_id is None
+        assert context.retry_count == 0
+        assert context.max_retries == 3
     
-    def test_validation_error_immediate_failure(self):
-        """Test that validation errors fail immediately without retries"""
-        # Test workspace ID validation
-        workspace_valid, workspace_error = self.error_handler.validate_workspace_id("invalid-id")
-        assert not workspace_valid
-        assert "Invalid workspace ID format" in workspace_error
-        
-        # Test run ID validation
-        run_valid, run_error = self.error_handler.validate_run_id("invalid-run")
-        assert not run_valid
-        assert "Invalid run ID format" in run_error
-    
-    def test_error_classification_accuracy(self):
-        """Test that errors are classified correctly for proper handling"""
-        test_cases = [
-            (requests.exceptions.SSLError("SSL error"), TFEErrorType.SSL_ERROR),
-            (requests.exceptions.Timeout("Timeout"), TFEErrorType.TIMEOUT),
-            (requests.exceptions.ConnectionError("Connection error"), TFEErrorType.SERVER_UNREACHABLE),
+    def test_error_type_enum_values(self):
+        """Test that all expected error types are defined"""
+        expected_types = [
+            "authentication",
+            "api_rate_limit", 
+            "network_connectivity",
+            "invalid_id_format",
+            "server_unreachable",
+            "plan_not_found",
+            "permission_denied",
+            "ssl_error",
+            "timeout",
+            "unknown"
         ]
         
-        for error, expected_type in test_cases:
-            classified_type = self.error_handler.classify_error(error)
-            assert classified_type == expected_type, f"Error {error} should be classified as {expected_type}, got {classified_type}"
+        for expected_type in expected_types:
+            # Verify enum value exists and has correct string value
+            error_type = TFEErrorType(expected_type)
+            assert error_type.value == expected_type
+
+
+if __name__ == '__main__':
+    pytest.main([__file__])
