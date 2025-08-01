@@ -61,7 +61,12 @@ class TestUploadComponent:
     @patch('streamlit.columns')
     @patch('streamlit.metric')
     @patch('components.upload_section.ErrorHandler')
-    def test_render_with_uploaded_file(self, mock_error_handler, mock_metric, 
+    @patch('streamlit.progress')
+    @patch('streamlit.empty')
+    @patch('streamlit.spinner')
+    @patch('time.sleep')
+    def test_render_with_uploaded_file(self, mock_sleep, mock_spinner, mock_empty, mock_progress,
+                                      mock_error_handler, mock_metric, 
                                       mock_columns, mock_markdown, mock_file_uploader, mock_tabs):
         """Test render method when a file is uploaded"""
         # Mock the error handler
@@ -96,10 +101,29 @@ class TestUploadComponent:
         mock_col3.__exit__ = Mock(return_value=None)
         mock_columns.return_value = [mock_col1, mock_col2, mock_col3]
         
-        result = self.upload_component.render()
+        # Mock progress bar and status text
+        mock_progress_bar = Mock()
+        mock_progress.return_value = mock_progress_bar
+        mock_status_text = Mock()
+        mock_empty.return_value = mock_status_text
         
-        # Verify it returns the uploaded file
-        assert result == mock_file
+        # Mock spinner context manager
+        mock_spinner_context = Mock()
+        mock_spinner_context.__enter__ = Mock(return_value=mock_spinner_context)
+        mock_spinner_context.__exit__ = Mock(return_value=None)
+        mock_spinner.return_value = mock_spinner_context
+        
+        # Mock the validate_and_parse_file method to return valid data
+        test_plan_data = {"test": "data"}
+        with patch.object(self.upload_component, 'validate_and_parse_file', return_value=(test_plan_data, None)):
+            # Mock the plan manager methods
+            with patch.object(self.upload_component.plan_manager, 'store_plan_data'):
+                with patch.object(self.upload_component.plan_manager, 'get_plan_data', return_value=test_plan_data):
+                    with patch.object(self.upload_component, '_show_secure_plan_summary'):
+                        result = self.upload_component.render()
+        
+        # Verify it returns the plan data from plan manager
+        assert result == test_plan_data
         
         # Verify file metrics are displayed
         mock_metric.assert_called()

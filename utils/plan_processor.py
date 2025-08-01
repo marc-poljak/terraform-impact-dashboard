@@ -46,27 +46,35 @@ class PlanProcessor:
         Returns:
             Dict containing processed data or None if processing failed
         """
-        # Both file upload and TFE integration now return plan data dictionaries
-        # Estimate size based on JSON string length for progress tracking
+        # Determine if we have a file or plan data already
         import json
-        file_size = len(json.dumps(plan_input)) if isinstance(plan_input, dict) else 1024
         
         # Use progress tracking context manager for file processing
+        file_size = 1024  # Default size
+        
         with self.progress_tracker.track_file_processing(file_size) as stage_tracker:
             try:
-                # Stage 1: Parsing - Both file upload and TFE integration now provide secure plan data
+                # Stage 1: Data extraction/validation
                 stage_tracker.next_stage()  # Show parsing progress
                 with self.performance_optimizer.performance_monitor("plan_data_validation"):
-                    # Both upload methods now return secure plan data dictionaries
-                    plan_data = plan_input
-                    if not isinstance(plan_data, dict):
-                        error_handler.handle_processing_error(
-                            ValueError("Invalid plan data format"), 
-                            "plan data processing"
-                        )
-                        return None
+                    # Check if we have plan data directly or need to extract from file
+                    if isinstance(plan_input, dict):
+                        # Plan data is already provided (e.g., from TFE)
+                        plan_data = plan_input
+                        file_size = len(json.dumps(plan_data))
+                    else:
+                        # We have a file object, need to validate and parse it
+                        plan_data, error_msg = upload_component.validate_and_parse_file(plan_input)
+                        if plan_data is None:
+                            if error_msg:
+                                error_handler.handle_processing_error(
+                                    ValueError(error_msg), 
+                                    "plan data validation"
+                                )
+                            return None
+                        file_size = len(json.dumps(plan_data))
                     
-                    # Plan data is already validated and secured by upload components
+                    # Plan data is now validated and secured
                     st.success("✅ **Plan data processed successfully!**")
                 
                 # Stage 2: Validation - Parse the uploaded file using existing PlanParser
