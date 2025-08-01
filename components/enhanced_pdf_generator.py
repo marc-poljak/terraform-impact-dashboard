@@ -329,6 +329,14 @@ class EnhancedPDFGenerator:
             fontName=font_family
         ))
         
+        # AppendixHeading style (always available for appendix sections)
+        self.styles.add(ParagraphStyle(
+            name='AppendixHeading',
+            parent=self.styles['SubsectionHeading'],
+            fontSize=12,
+            textColor=colors.HexColor('#7f8c8d')
+        ))
+        
         # Detailed mode specific styles
         if self.current_template.detailed_mode:
             self.styles.add(ParagraphStyle(
@@ -337,13 +345,6 @@ class EnhancedPDFGenerator:
                 fontSize=10,
                 spaceAfter=6,
                 alignment=TA_JUSTIFY
-            ))
-            
-            self.styles.add(ParagraphStyle(
-                name='AppendixHeading',
-                parent=self.styles['SubsectionHeading'],
-                fontSize=12,
-                textColor=colors.HexColor('#7f8c8d')
             ))
     
     def generate_comprehensive_report(self,
@@ -1047,8 +1048,11 @@ class EnhancedPDFGenerator:
             f"Configuration Files: {len(plan_data.get('configuration', {}).get('root_module', {}).get('resources', []))} resources defined"
         ]
         
+        # Use appropriate body text style (DetailedBodyText if available, otherwise CustomBodyText)
+        body_style = 'DetailedBodyText' if 'DetailedBodyText' in self.styles else 'CustomBodyText'
+        
         for detail in tech_details:
-            story.append(Paragraph(f"• {detail}", self.styles['DetailedBodyText']))
+            story.append(Paragraph(f"• {detail}", self.styles[body_style]))
         
         story.append(Spacer(1, 15))
         
@@ -1060,7 +1064,7 @@ class EnhancedPDFGenerator:
                 
                 for provider_name, provider_config in providers.items():
                     story.append(Paragraph(f"• {provider_name}: {provider_config.get('name', 'Unknown')}", 
-                                         self.styles['DetailedBodyText']))
+                                         self.styles[body_style]))
                 
                 story.append(Spacer(1, 15))
         
@@ -1071,14 +1075,14 @@ class EnhancedPDFGenerator:
                 story.append(Paragraph("Variables Used", self.styles['AppendixHeading']))
                 
                 var_count = len(variables)
-                story.append(Paragraph(f"Total variables defined: {var_count}", self.styles['DetailedBodyText']))
+                story.append(Paragraph(f"Total variables defined: {var_count}", self.styles[body_style]))
                 
                 # Show first few variables as examples
                 for i, (var_name, var_info) in enumerate(list(variables.items())[:5]):
                     var_value = var_info.get('value', 'Not set')
                     if isinstance(var_value, str) and len(var_value) > 50:
                         var_value = var_value[:47] + "..."
-                    story.append(Paragraph(f"• {var_name}: {var_value}", self.styles['DetailedBodyText']))
+                    story.append(Paragraph(f"• {var_name}: {var_value}", self.styles[body_style]))
                 
                 if var_count > 5:
                     story.append(Paragraph(f"... and {var_count - 5} more variables", self.styles['Metadata']))

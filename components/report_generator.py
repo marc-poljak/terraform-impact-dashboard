@@ -16,13 +16,13 @@ from io import BytesIO
 from jinja2 import Template
 from .base_component import BaseComponent
 
+# Import enhanced PDF generator
 try:
-    from weasyprint import HTML, CSS
-    WEASYPRINT_AVAILABLE = True
-except (ImportError, OSError) as e:
-    # Handle both import errors and system dependency issues
-    WEASYPRINT_AVAILABLE = False
-    WEASYPRINT_ERROR = str(e)
+    from .enhanced_pdf_generator import EnhancedPDFGenerator
+    PDF_GENERATOR_AVAILABLE = True
+except ImportError as e:
+    PDF_GENERATOR_AVAILABLE = False
+    PDF_GENERATOR_ERROR = str(e)
 
 
 class ReportGeneratorComponent(BaseComponent):
@@ -45,6 +45,12 @@ class ReportGeneratorComponent(BaseComponent):
             'resource_breakdown': True,
             'recommendations': True
         }
+        
+        # Initialize enhanced PDF generator
+        if PDF_GENERATOR_AVAILABLE:
+            self.pdf_generator = EnhancedPDFGenerator()
+        else:
+            self.pdf_generator = None
     
     def generate_executive_summary(self, 
                                  summary: Dict[str, int], 
@@ -844,7 +850,7 @@ class ReportGeneratorComponent(BaseComponent):
                          include_sections: Optional[Dict[str, bool]] = None,
                          template_name: str = "default") -> Optional[bytes]:
         """
-        Export report as PDF file
+        Export report as PDF file using enhanced PDF generator
         
         Args:
             summary: Change summary
@@ -859,47 +865,33 @@ class ReportGeneratorComponent(BaseComponent):
         Returns:
             PDF content as bytes, or None if PDF generation is not available
         """
-        # Check WeasyPrint availability
-        
-        if not WEASYPRINT_AVAILABLE:
+        # Check PDF generator availability
+        if not PDF_GENERATOR_AVAILABLE or not self.pdf_generator:
             error_msg = "PDF export is not available."
-            if 'WEASYPRINT_ERROR' in globals():
-                if 'libgobject' in WEASYPRINT_ERROR or 'OSError' in WEASYPRINT_ERROR:
-                    error_msg += " WeasyPrint requires system dependencies. On macOS, install with: brew install pango"
-                else:
-                    error_msg += " Please install weasyprint: pip install weasyprint"
-                st.error(f"{error_msg}\n\nDetailed error: {WEASYPRINT_ERROR}")
+            if 'PDF_GENERATOR_ERROR' in globals():
+                error_msg += f" Please install reportlab: pip install reportlab\n\nDetailed error: {PDF_GENERATOR_ERROR}"
             else:
-                st.error(error_msg)
+                error_msg += " Please install reportlab: pip install reportlab"
+            st.error(error_msg)
+            return None
+        
+        # Validate dependencies
+        is_valid, validation_error = self.pdf_generator.validate_dependencies()
+        if not is_valid:
+            st.error(f"PDF generation dependencies not available: {validation_error}")
             return None
         
         try:
-            # Generate the HTML report
-            html_content = self.export_html_report(
+            # Generate PDF using enhanced PDF generator
+            pdf_bytes = self.pdf_generator.generate_comprehensive_report(
                 summary=summary,
                 risk_summary=risk_summary,
                 resource_changes=resource_changes,
                 resource_types=resource_types,
                 plan_data=plan_data,
-                enhanced_risk_assessor=enhanced_risk_assessor,
-                include_sections=include_sections,
-                template_name=template_name
+                template_name=template_name,
+                include_sections=include_sections
             )
-            
-            if not html_content:
-                st.error("Failed to generate HTML content for PDF")
-                return None
-            
-            # Add PDF-specific CSS
-            pdf_css = self.generate_pdf_css()
-            html_with_pdf_css = html_content.decode('utf-8').replace(
-                '</head>',
-                f'<style>{pdf_css}</style></head>'
-            )
-            
-            # Generate PDF using WeasyPrint
-            html_doc = HTML(string=html_with_pdf_css)
-            pdf_bytes = html_doc.write_pdf()
             
             if pdf_bytes and len(pdf_bytes) > 0:
                 return pdf_bytes
@@ -915,58 +907,7 @@ class ReportGeneratorComponent(BaseComponent):
             st.error("PDF generation failed in export_pdf_report method")
             return None
     
-    def generate_pdf_css(self) -> str:
-        """Generate additional CSS styles for PDF export"""
-        return """
-        @page {
-            size: A4;
-            margin: 2cm;
-            @top-center {
-                content: "Terraform Plan Impact Report";
-                font-size: 12px;
-                color: #666;
-            }
-            @bottom-center {
-                content: "Page " counter(page) " of " counter(pages);
-                font-size: 10px;
-                color: #666;
-            }
-        }
-        
-        .report-container {
-            max-width: none;
-            margin: 0;
-            padding: 0;
-        }
-        
-        .metrics-grid {
-            display: block;
-        }
-        
-        .metric-card {
-            display: inline-block;
-            width: 45%;
-            margin: 10px 2%;
-            vertical-align: top;
-        }
-        
-        .risk-table, .changes-table, .resource-summary-table {
-            page-break-inside: avoid;
-        }
-        
-        .changes-section {
-            page-break-inside: avoid;
-        }
-        
-        h2 {
-            page-break-before: auto;
-            page-break-after: avoid;
-        }
-        
-        .deployment-recommendation {
-            page-break-inside: avoid;
-        }
-        """
+
     
     def apply_template_customizations(self, html_content: str, template_name: str) -> str:
         """
@@ -1136,8 +1077,8 @@ class ReportGeneratorComponent(BaseComponent):
                         )
                     
                     with col2:
-                        # PDF download
-                        if WEASYPRINT_AVAILABLE:
+                        # PDF download using enhanced PDF generator
+                        if PDF_GENERATOR_AVAILABLE and self.pdf_generator:
                             # Initialize PDF content in session state if not exists
                             pdf_key = f"pdf_content_{selected_template}"
                             if pdf_key not in st.session_state:
@@ -1147,40 +1088,33 @@ class ReportGeneratorComponent(BaseComponent):
                             if pdf_key in st.session_state and st.session_state[pdf_key] is not None:
                                 st.info("📄 PDF already generated and ready for download")
                             else:
-                                st.info("📑 Click 'Generate PDF' to create a downloadable PDF report")
+                                st.info("📑 Click 'Generate PDF' to create a professional PDF report")
                             
-                            # New Pure Python PDF Generation
-                            if st.button("📑 Generate PDF", help="Generate beautiful PDF using pure Python - no dependencies!"):
-                                with st.spinner("✨ Creating your beautiful PDF report..."):
+                            # Enhanced PDF Generation
+                            if st.button("📑 Generate PDF", help="Generate professional PDF using enhanced PDF generator"):
+                                with st.spinner("✨ Creating your professional PDF report..."):
                                     try:
-                                        # Import our new clean PDF generator
-                                        from .pdf_report_generator import create_simple_pdf_generator
-                                        
-                                        # Create the generator
-                                        pdf_gen = create_simple_pdf_generator()
-                                        
-                                        # Generate the PDF
-                                        pdf_content = pdf_gen.generate_pdf_report(
+                                        # Generate the PDF using the enhanced PDF generator
+                                        pdf_content = self.export_pdf_report(
                                             summary=summary,
                                             risk_summary=risk_summary,
                                             resource_changes=resource_changes,
                                             resource_types=resource_types,
                                             plan_data=plan_data,
+                                            enhanced_risk_assessor=enhanced_risk_assessor,
+                                            include_sections=include_sections,
                                             template_name=selected_template
                                         )
                                         
                                         if pdf_content:
                                             st.session_state[pdf_key] = pdf_content
-                                            st.success("✅ Beautiful PDF generated successfully!")
+                                            st.success("✅ Professional PDF generated successfully!")
                                         else:
                                             st.error("❌ PDF generation failed. Please try again.")
                                             
-                                    except ImportError as e:
-                                        st.error("📦 Missing dependency: Please install reportlab")
-                                        st.code("pip install reportlab")
                                     except Exception as e:
                                         st.error(f"❌ Error: {str(e)}")
-                                        st.info("💡 This is our new clean PDF generator - please report any issues!")
+                                        st.info("💡 Enhanced PDF generator encountered an issue - please report if this persists!")
                             
                             # Show download button if PDF is available
                             if st.session_state[pdf_key] is not None:
@@ -1204,8 +1138,8 @@ class ReportGeneratorComponent(BaseComponent):
                                     st.session_state[pdf_key] = None
                                     st.rerun()
                         else:
-                            st.info("📑 PDF export is available with our new Pure Python generator!")
-                            st.info("💡 We've replaced the old WeasyPrint system with a clean, dependency-free solution")
+                            st.info("📑 PDF export requires reportlab installation")
+                            st.info("💡 Enhanced PDF generator provides professional reports without system dependencies")
                             if st.button("📦 Install PDF Generator", help="Install reportlab for PDF generation"):
                                 st.code("pip install reportlab", language="bash")
                                 st.info("After installation, refresh the page to enable PDF generation")
