@@ -12,6 +12,7 @@ import io
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 import logging
+import hashlib
 from dataclasses import dataclass, field
 
 # Configure logging
@@ -472,14 +473,24 @@ class EnhancedPDFGenerator:
         """
         story = []
         
-        # Main title
+        # Professional header section
+        story.extend(self._create_professional_header())
+        
+        # Main title with enhanced styling
+        story.append(Spacer(1, 20))
         story.append(Paragraph("🚀 Terraform Plan Impact Report", self.styles['MainTitle']))
+        story.append(Spacer(1, 10))
+        
+        # Subtitle with version information
+        subtitle_text = f"Infrastructure Change Analysis & Risk Assessment"
+        story.append(Paragraph(subtitle_text, self.styles['SubsectionHeading']))
         story.append(Spacer(1, 30))
         
-        # Generate timestamp
+        # Generate comprehensive metadata
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        report_version = "1.0.0"  # Could be made configurable
         
-        # Calculate total changes
+        # Calculate comprehensive statistics
         total_changes = summary.get('total', sum([
             summary.get('create', 0),
             summary.get('update', 0),
@@ -487,45 +498,201 @@ class EnhancedPDFGenerator:
             summary.get('no-op', 0)
         ]))
         
-        # Metadata table
+        total_resources = len(plan_data.get('resource_changes', []))
+        
+        # Enhanced metadata table with more comprehensive information
         metadata_data = [
-            ['Report Generated:', timestamp],
+            ['Report Information', ''],
+            ['Generated:', timestamp],
+            ['Report Version:', report_version],
+            ['Document ID:', f"TF-{datetime.now().strftime('%Y%m%d-%H%M%S')}"],
+            ['', ''],
+            ['Terraform Configuration', ''],
             ['Terraform Version:', plan_data.get('terraform_version', 'Unknown')],
-            ['Format Version:', plan_data.get('format_version', 'Unknown')],
-            ['Total Resources:', str(len(plan_data.get('resource_changes', [])))],
-            ['Total Changes:', str(total_changes)]
+            ['Plan Format Version:', plan_data.get('format_version', 'Unknown')],
+            ['Configuration Hash:', self._generate_config_hash(plan_data)],
+            ['', ''],
+            ['Resource Summary', ''],
+            ['Total Resources in Plan:', str(total_resources)],
+            ['Resources with Changes:', str(total_changes)],
+            ['Resources Unchanged:', str(summary.get('no-op', 0))],
+            ['Change Percentage:', f"{(total_changes/total_resources*100):.1f}%" if total_resources > 0 else "0%"]
         ]
         
-        metadata_table = Table(metadata_data, colWidths=[2.5*inch, 3*inch])
+        metadata_table = Table(metadata_data, colWidths=[2.8*inch, 2.7*inch])
         metadata_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f8f9fa')),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            # Header rows styling
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, 5), (-1, 5), colors.HexColor('#2c3e50')),
+            ('TEXTCOLOR', (0, 5), (-1, 5), colors.white),
+            ('FONTNAME', (0, 5), (-1, 5), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, 10), (-1, 10), colors.HexColor('#2c3e50')),
+            ('TEXTCOLOR', (0, 10), (-1, 10), colors.white),
+            ('FONTNAME', (0, 10), (-1, 10), 'Helvetica-Bold'),
+            
+            # Empty row styling
+            ('BACKGROUND', (0, 4), (-1, 4), colors.white),
+            ('BACKGROUND', (0, 9), (-1, 9), colors.white),
+            ('LINEBELOW', (0, 4), (-1, 4), 0, colors.white),
+            ('LINEBELOW', (0, 9), (-1, 9), 0, colors.white),
+            
+            # General styling
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 1), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
             ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#dee2e6')),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('ROWBACKGROUNDS', (0, 0), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')])
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')])
         ]))
         
         story.append(metadata_table)
-        story.append(Spacer(1, 40))
+        story.append(Spacer(1, 30))
         
-        # Quick summary section
-        story.append(Paragraph("📊 Quick Summary", self.styles['SubsectionHeading']))
+        # Enhanced summary section with visual indicators
+        story.append(Paragraph("📊 Change Summary Overview", self.styles['SubsectionHeading']))
+        story.append(Spacer(1, 10))
         
-        summary_text = f"""
-        <b>Resources to Create:</b> {summary.get('create', 0)}<br/>
-        <b>Resources to Update:</b> {summary.get('update', 0)}<br/>
-        <b>Resources to Delete:</b> {summary.get('delete', 0)}<br/>
-        <b>No Changes:</b> {summary.get('no-op', 0)}
-        """
+        # Create visual summary with color coding
+        summary_data = [
+            ['Change Type', 'Count', 'Impact Level', 'Description'],
+            ['Create', str(summary.get('create', 0)), self._get_impact_level('create'), 'New resources to be provisioned'],
+            ['Update', str(summary.get('update', 0)), self._get_impact_level('update'), 'Existing resources to be modified'],
+            ['Delete', str(summary.get('delete', 0)), self._get_impact_level('delete'), 'Resources to be removed'],
+            ['No Change', str(summary.get('no-op', 0)), self._get_impact_level('no-op'), 'Resources with no modifications']
+        ]
         
-        story.append(Paragraph(summary_text, self.styles['CustomSummaryBox']))
+        summary_table = Table(summary_data, colWidths=[1.2*inch, 0.8*inch, 1.2*inch, 2.3*inch])
+        summary_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('ALIGN', (1, 1), (1, -1), 'CENTER'),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            
+            # Color coding for different change types
+            ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor('#d4edda')),  # Create - green
+            ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor('#fff3cd')),  # Update - yellow
+            ('BACKGROUND', (0, 3), (-1, 3), colors.HexColor('#f8d7da')),  # Delete - red
+            ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor('#e2e3e5')),  # No-op - gray
+        ]))
+        
+        story.append(summary_table)
+        story.append(Spacer(1, 20))
+        
+        # Professional footer for title page
+        story.extend(self._create_professional_footer())
         story.append(PageBreak())
         
         return story
+    
+    def _create_professional_header(self) -> List:
+        """
+        Create a professional header for the document
+        
+        Returns:
+            List of reportlab elements for the header
+        """
+        header_elements = []
+        
+        # Header line
+        header_line_data = [['Terraform Infrastructure Analysis Report']]
+        header_table = Table(header_line_data, colWidths=[6*inch])
+        header_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#2c3e50')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 12),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        
+        header_elements.append(header_table)
+        header_elements.append(Spacer(1, 5))
+        
+        return header_elements
+    
+    def _create_professional_footer(self) -> List:
+        """
+        Create a professional footer for the document
+        
+        Returns:
+            List of reportlab elements for the footer
+        """
+        footer_elements = []
+        
+        footer_elements.append(Spacer(1, 20))
+        
+        # Footer information
+        footer_text = f"""
+        <i>This report was automatically generated on {datetime.now().strftime('%B %d, %Y at %H:%M:%S')}.<br/>
+        Report contains analysis of Terraform plan changes and associated risk assessment.<br/>
+        For questions or support, please contact your infrastructure team.</i>
+        """
+        
+        footer_elements.append(Paragraph(footer_text, self.styles['Metadata']))
+        
+        # Footer line
+        footer_line_data = [['End of Title Page']]
+        footer_table = Table(footer_line_data, colWidths=[6*inch])
+        footer_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#ecf0f1')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#7f8c8d')),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        
+        footer_elements.append(Spacer(1, 10))
+        footer_elements.append(footer_table)
+        
+        return footer_elements
+    
+    def _generate_config_hash(self, plan_data: Dict[str, Any]) -> str:
+        """
+        Generate a simple hash for the configuration to help with tracking
+        
+        Args:
+            plan_data: Terraform plan data
+            
+        Returns:
+            Configuration hash string
+        """
+        import hashlib
+        
+        # Create a simple hash based on terraform version and resource count
+        hash_input = f"{plan_data.get('terraform_version', 'unknown')}-{len(plan_data.get('resource_changes', []))}"
+        return hashlib.md5(hash_input.encode()).hexdigest()[:8].upper()
+    
+    def _get_impact_level(self, change_type: str) -> str:
+        """
+        Get impact level description for different change types
+        
+        Args:
+            change_type: Type of change (create, update, delete, no-op)
+            
+        Returns:
+            Impact level description
+        """
+        impact_levels = {
+            'create': 'Low',
+            'update': 'Medium',
+            'delete': 'High',
+            'no-op': 'None'
+        }
+        return impact_levels.get(change_type, 'Unknown')
     
     def _create_executive_summary(self, summary: Dict[str, int], risk_summary: Dict[str, Any]) -> List:
         """

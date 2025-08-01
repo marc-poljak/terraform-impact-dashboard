@@ -252,6 +252,205 @@ class TestEnhancedPDFGenerator(unittest.TestCase):
         
         self.assertIsInstance(title_elements, list)
         self.assertGreater(len(title_elements), 0)
+        
+        # Verify that title page contains expected elements
+        # Should have header, title, metadata table, summary table, footer, and page break
+        self.assertGreaterEqual(len(title_elements), 8)
+    
+    @unittest.skipUnless(REPORTLAB_AVAILABLE, "Reportlab not available")
+    def test_create_title_page_with_empty_data(self):
+        """Test title page creation with empty data"""
+        # Set up template and styles first
+        default_template = self.generator.template_manager.get_template("default")
+        self.generator.current_template = default_template
+        self.generator._setup_template_styles(default_template.style_config)
+        
+        empty_plan_data = {}
+        empty_summary = {'create': 0, 'update': 0, 'delete': 0, 'no-op': 0}
+        
+        title_elements = self.generator._create_title_page(empty_plan_data, empty_summary)
+        
+        self.assertIsInstance(title_elements, list)
+        self.assertGreater(len(title_elements), 0)
+    
+    @unittest.skipUnless(REPORTLAB_AVAILABLE, "Reportlab not available")
+    def test_create_title_page_with_comprehensive_data(self):
+        """Test title page creation with comprehensive data"""
+        # Set up template and styles first
+        default_template = self.generator.template_manager.get_template("default")
+        self.generator.current_template = default_template
+        self.generator._setup_template_styles(default_template.style_config)
+        
+        comprehensive_plan_data = {
+            'terraform_version': '1.6.0',
+            'format_version': '1.3',
+            'resource_changes': [
+                {'address': 'aws_instance.web1', 'type': 'aws_instance', 'change': {'actions': ['create']}},
+                {'address': 'aws_instance.web2', 'type': 'aws_instance', 'change': {'actions': ['update']}},
+                {'address': 'aws_s3_bucket.old', 'type': 'aws_s3_bucket', 'change': {'actions': ['delete']}},
+            ]
+        }
+        
+        comprehensive_summary = {
+            'create': 10,
+            'update': 5,
+            'delete': 2,
+            'no-op': 15,
+            'total': 32
+        }
+        
+        title_elements = self.generator._create_title_page(
+            comprehensive_plan_data,
+            comprehensive_summary
+        )
+        
+        self.assertIsInstance(title_elements, list)
+        self.assertGreater(len(title_elements), 0)
+    
+    @unittest.skipUnless(REPORTLAB_AVAILABLE, "Reportlab not available")
+    def test_create_professional_header(self):
+        """Test professional header creation"""
+        # Set up template and styles first
+        default_template = self.generator.template_manager.get_template("default")
+        self.generator.current_template = default_template
+        self.generator._setup_template_styles(default_template.style_config)
+        
+        header_elements = self.generator._create_professional_header()
+        
+        self.assertIsInstance(header_elements, list)
+        self.assertGreater(len(header_elements), 0)
+        # Should contain header table and spacer
+        self.assertGreaterEqual(len(header_elements), 2)
+    
+    @unittest.skipUnless(REPORTLAB_AVAILABLE, "Reportlab not available")
+    def test_create_professional_footer(self):
+        """Test professional footer creation"""
+        # Set up template and styles first
+        default_template = self.generator.template_manager.get_template("default")
+        self.generator.current_template = default_template
+        self.generator._setup_template_styles(default_template.style_config)
+        
+        footer_elements = self.generator._create_professional_footer()
+        
+        self.assertIsInstance(footer_elements, list)
+        self.assertGreater(len(footer_elements), 0)
+        # Should contain spacer, paragraph, spacer, and footer table
+        self.assertGreaterEqual(len(footer_elements), 4)
+    
+    def test_generate_config_hash(self):
+        """Test configuration hash generation"""
+        plan_data = {
+            'terraform_version': '1.5.0',
+            'resource_changes': [{'test': 'data'}]
+        }
+        
+        config_hash = self.generator._generate_config_hash(plan_data)
+        
+        self.assertIsInstance(config_hash, str)
+        self.assertEqual(len(config_hash), 8)
+        self.assertTrue(config_hash.isupper())
+        
+        # Test with empty data
+        empty_hash = self.generator._generate_config_hash({})
+        self.assertIsInstance(empty_hash, str)
+        self.assertEqual(len(empty_hash), 8)
+        
+        # Test consistency - same input should produce same hash
+        same_hash = self.generator._generate_config_hash(plan_data)
+        self.assertEqual(config_hash, same_hash)
+    
+    def test_get_impact_level(self):
+        """Test impact level determination for different change types"""
+        test_cases = [
+            ('create', 'Low'),
+            ('update', 'Medium'),
+            ('delete', 'High'),
+            ('no-op', 'None'),
+            ('unknown_type', 'Unknown')
+        ]
+        
+        for change_type, expected_impact in test_cases:
+            with self.subTest(change_type=change_type):
+                impact = self.generator._get_impact_level(change_type)
+                self.assertEqual(impact, expected_impact)
+    
+    @unittest.skipUnless(REPORTLAB_AVAILABLE, "Reportlab not available")
+    def test_title_page_metadata_completeness(self):
+        """Test that title page includes all required metadata"""
+        # Set up template and styles first
+        default_template = self.generator.template_manager.get_template("default")
+        self.generator.current_template = default_template
+        self.generator._setup_template_styles(default_template.style_config)
+        
+        plan_data_with_version = {
+            'terraform_version': '1.5.0',
+            'format_version': '1.2',
+            'resource_changes': [
+                {'address': 'test.resource', 'type': 'test_resource'}
+            ]
+        }
+        
+        summary_with_changes = {
+            'create': 3,
+            'update': 2,
+            'delete': 1,
+            'no-op': 5,
+            'total': 11
+        }
+        
+        title_elements = self.generator._create_title_page(
+            plan_data_with_version,
+            summary_with_changes
+        )
+        
+        # Verify we have all expected elements
+        self.assertIsInstance(title_elements, list)
+        self.assertGreater(len(title_elements), 5)
+        
+        # The last element should be a PageBreak
+        from reportlab.platypus import PageBreak
+        self.assertIsInstance(title_elements[-1], PageBreak)
+    
+    @unittest.skipUnless(REPORTLAB_AVAILABLE, "Reportlab not available")
+    def test_title_page_with_different_templates(self):
+        """Test title page generation with different templates"""
+        templates = ["default", "compact", "detailed"]
+        
+        for template_name in templates:
+            with self.subTest(template=template_name):
+                template = self.generator.template_manager.get_template(template_name)
+                self.generator.current_template = template
+                self.generator._setup_template_styles(template.style_config)
+                
+                title_elements = self.generator._create_title_page(
+                    self.sample_plan_data,
+                    self.sample_summary
+                )
+                
+                self.assertIsInstance(title_elements, list)
+                self.assertGreater(len(title_elements), 0)
+    
+    @unittest.skipUnless(REPORTLAB_AVAILABLE, "Reportlab not available")
+    def test_title_page_timestamp_format(self):
+        """Test that title page includes properly formatted timestamp"""
+        # Set up template and styles first
+        default_template = self.generator.template_manager.get_template("default")
+        self.generator.current_template = default_template
+        self.generator._setup_template_styles(default_template.style_config)
+        
+        # Mock datetime to test timestamp format
+        with patch('components.enhanced_pdf_generator.datetime') as mock_datetime:
+            mock_datetime.now.return_value.strftime.return_value = "2024-01-15 14:30:45"
+            
+            title_elements = self.generator._create_title_page(
+                self.sample_plan_data,
+                self.sample_summary
+            )
+            
+            # Verify datetime.now() was called for timestamp generation
+            mock_datetime.now.assert_called()
+            self.assertIsInstance(title_elements, list)
+            self.assertGreater(len(title_elements), 0)
     
     @unittest.skipUnless(REPORTLAB_AVAILABLE, "Reportlab not available")
     def test_create_executive_summary(self):
