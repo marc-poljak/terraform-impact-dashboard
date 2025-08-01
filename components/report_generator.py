@@ -521,190 +521,7 @@ class ReportGeneratorComponent(BaseComponent):
         </div>
         """
     
-    def generate_report_css(self) -> str:
-        """Generate CSS styles for the report"""
-        return """
-        <style>
-        .report-container {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        
-        .report-header {
-            text-align: center;
-            border-bottom: 3px solid #0066cc;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .report-title {
-            color: #0066cc;
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }
-        
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin: 20px 0;
-        }
-        
-        .metric-card {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            padding: 20px;
-            text-align: center;
-        }
-        
-        .metric-value {
-            font-size: 2em;
-            font-weight: bold;
-            color: #0066cc;
-        }
-        
-        .metric-label {
-            color: #666;
-            font-size: 0.9em;
-            margin-top: 5px;
-        }
-        
-        .deployment-recommendation {
-            padding: 15px;
-            border-radius: 8px;
-            margin: 20px 0;
-        }
-        
-        .deployment-recommendation.success {
-            background-color: #d4edda;
-            border: 1px solid #c3e6cb;
-            color: #155724;
-        }
-        
-        .deployment-recommendation.warning {
-            background-color: #fff3cd;
-            border: 1px solid #ffeaa7;
-            color: #856404;
-        }
-        
-        .deployment-recommendation.danger {
-            background-color: #f8d7da;
-            border: 1px solid #f5c6cb;
-            color: #721c24;
-        }
-        
-        .risk-score-display {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            margin: 15px 0;
-        }
-        
-        .risk-level {
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-weight: bold;
-            font-size: 1.2em;
-        }
-        
-        .risk-level.risk-low {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        
-        .risk-level.risk-medium {
-            background-color: #fff3cd;
-            color: #856404;
-        }
-        
-        .risk-level.risk-high {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-        
-        .risk-level.risk-critical {
-            background-color: #d1ecf1;
-            color: #0c5460;
-        }
-        
-        .risk-score {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #0066cc;
-        }
-        
-        .risk-table, .changes-table, .resource-summary-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 15px 0;
-        }
-        
-        .risk-table th, .changes-table th, .resource-summary-table th {
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-            padding: 12px;
-            text-align: left;
-            font-weight: bold;
-        }
-        
-        .risk-table td, .changes-table td, .resource-summary-table td {
-            border: 1px solid #dee2e6;
-            padding: 10px;
-        }
-        
-        .risk-low { background-color: #d4edda; }
-        .risk-medium { background-color: #fff3cd; }
-        .risk-high { background-color: #f8d7da; }
-        .risk-critical { background-color: #d1ecf1; }
-        
-        .changes-section {
-            margin: 30px 0;
-        }
-        
-        .truncated-notice {
-            font-style: italic;
-            color: #666;
-            text-align: center;
-        }
-        
-        .recommendations-content ul {
-            list-style-type: none;
-            padding-left: 0;
-        }
-        
-        .recommendations-content li {
-            margin: 10px 0;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-left: 4px solid #0066cc;
-            border-radius: 4px;
-        }
-        
-        code {
-            background-color: #f1f3f4;
-            padding: 2px 4px;
-            border-radius: 3px;
-            font-family: 'Monaco', 'Consolas', monospace;
-        }
-        
-        h2 {
-            color: #0066cc;
-            border-bottom: 2px solid #e9ecef;
-            padding-bottom: 10px;
-            margin-top: 40px;
-        }
-        
-        h3 {
-            color: #495057;
-            margin-top: 25px;
-        }
-        </style>
-        """
+
     
     def generate_full_report(self,
                            summary: Dict[str, int],
@@ -746,7 +563,186 @@ class ReportGeneratorComponent(BaseComponent):
         <head>
             <meta charset="UTF-8">
             <title>Terraform Plan Impact Report - {timestamp}</title>
-            {self.generate_report_css()}
+            <style>
+            .report-container {{
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 20px;
+            }}
+            
+            .report-header {{
+                text-align: center;
+                border-bottom: 3px solid #0066cc;
+                padding-bottom: 20px;
+                margin-bottom: 30px;
+            }}
+            
+            .report-title {{
+                color: #0066cc;
+                font-size: 2.5em;
+                margin-bottom: 10px;
+            }}
+            
+            .metrics-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 20px;
+                margin: 20px 0;
+            }}
+            
+            .metric-card {{
+                background: #f8f9fa;
+                border: 1px solid #dee2e6;
+                border-radius: 8px;
+                padding: 20px;
+                text-align: center;
+            }}
+            
+            .metric-value {{
+                font-size: 2em;
+                font-weight: bold;
+                color: #0066cc;
+            }}
+            
+            .metric-label {{
+                color: #666;
+                font-size: 0.9em;
+                margin-top: 5px;
+            }}
+            
+            .deployment-recommendation {{
+                padding: 15px;
+                border-radius: 8px;
+                margin: 20px 0;
+            }}
+            
+            .deployment-recommendation.success {{
+                background-color: #d4edda;
+                border: 1px solid #c3e6cb;
+                color: #155724;
+            }}
+            
+            .deployment-recommendation.warning {{
+                background-color: #fff3cd;
+                border: 1px solid #ffeaa7;
+                color: #856404;
+            }}
+            
+            .deployment-recommendation.danger {{
+                background-color: #f8d7da;
+                border: 1px solid #f5c6cb;
+                color: #721c24;
+            }}
+            
+            .risk-score-display {{
+                display: flex;
+                align-items: center;
+                gap: 20px;
+                margin: 15px 0;
+            }}
+            
+            .risk-level {{
+                padding: 10px 20px;
+                border-radius: 20px;
+                font-weight: bold;
+                font-size: 1.2em;
+            }}
+            
+            .risk-level.risk-low {{
+                background-color: #d4edda;
+                color: #155724;
+            }}
+            
+            .risk-level.risk-medium {{
+                background-color: #fff3cd;
+                color: #856404;
+            }}
+            
+            .risk-level.risk-high {{
+                background-color: #f8d7da;
+                color: #721c24;
+            }}
+            
+            .risk-level.risk-critical {{
+                background-color: #d1ecf1;
+                color: #0c5460;
+            }}
+            
+            .risk-score {{
+                font-size: 1.5em;
+                font-weight: bold;
+                color: #0066cc;
+            }}
+            
+            .risk-table, .changes-table, .resource-summary-table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin: 15px 0;
+            }}
+            
+            .risk-table th, .changes-table th, .resource-summary-table th {{
+                background-color: #f8f9fa;
+                border: 1px solid #dee2e6;
+                padding: 12px;
+                text-align: left;
+                font-weight: bold;
+            }}
+            
+            .risk-table td, .changes-table td, .resource-summary-table td {{
+                border: 1px solid #dee2e6;
+                padding: 10px;
+            }}
+            
+            .risk-low {{ background-color: #d4edda; }}
+            .risk-medium {{ background-color: #fff3cd; }}
+            .risk-high {{ background-color: #f8d7da; }}
+            .risk-critical {{ background-color: #d1ecf1; }}
+            
+            .changes-section {{
+                margin: 30px 0;
+            }}
+            
+            .truncated-notice {{
+                font-style: italic;
+                color: #666;
+                text-align: center;
+            }}
+            
+            .recommendations-content ul {{
+                list-style-type: none;
+                padding-left: 0;
+            }}
+            
+            .recommendations-content li {{
+                margin: 10px 0;
+                padding: 10px;
+                background-color: #f8f9fa;
+                border-left: 4px solid #0066cc;
+                border-radius: 4px;
+            }}
+            
+            code {{
+                background-color: #f1f3f4;
+                padding: 2px 4px;
+                border-radius: 3px;
+                font-family: 'Monaco', 'Consolas', monospace;
+            }}
+            
+            h2 {{
+                color: #0066cc;
+                border-bottom: 2px solid #e9ecef;
+                padding-bottom: 10px;
+                margin-top: 40px;
+            }}
+            
+            h3 {{
+                color: #495057;
+                margin-top: 25px;
+            }}
+            </style>
         </head>
         <body>
             <div class="report-container">
