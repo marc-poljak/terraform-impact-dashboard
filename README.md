@@ -42,7 +42,6 @@ A comprehensive, professional web dashboard for visualizing Terraform plan chang
 
 - Python 3.8 or higher
 - Virtual environment (recommended)
-- For PDF reports: System dependencies for WeasyPrint (see PDF Setup section)
 
 ### Quick Start
 
@@ -141,27 +140,15 @@ terraform-impact-dashboard/
     └── specs/                      # Project specifications
 ```
 
-### PDF Report Setup (Optional)
+### PDF Report Generation
 
-For PDF report generation, install system dependencies:
+PDF reports are generated using reportlab, a pure Python library that requires no system dependencies:
 
-**macOS:**
 ```bash
-brew install glib gobject-introspection cairo pango gdk-pixbuf libffi
-pip install weasyprint
+pip install reportlab
 ```
 
-**Linux (Ubuntu/Debian):**
-```bash
-sudo apt-get install libpango-1.0-0 libharfbuzz0b libpangoft2-1.0-0
-pip install weasyprint
-```
-
-**Windows:**
-```bash
-pip install weasyprint
-# May require additional system libraries
-```
+The reportlab library is included in the requirements.txt file and will be installed automatically when you run `pip install -r requirements.txt`.
 
 ## 📁 Usage Guide
 
@@ -280,11 +267,11 @@ streamlit run app.py --server.maxUploadSize=200
 
 **PDF generation not working:**
 ```bash
-# Install system dependencies (macOS)
-brew install glib gobject-introspection cairo pango gdk-pixbuf libffi
+# Test reportlab installation
+python -c "import reportlab; print('Reportlab working!')"
 
-# Test WeasyPrint installation
-python -c "import weasyprint; print('WeasyPrint working!')"
+# Reinstall if needed
+pip install reportlab
 ```
 
 **Enhanced features not available:**
@@ -407,7 +394,7 @@ This project was significantly enhanced and expanded with the assistance of **Ki
 - **🧠 Claude by Anthropic**: Initial development support and architectural guidance
 - **🚀 Streamlit Community**: Excellent framework for rapid dashboard development
 - **📊 Plotly**: Powerful visualization library for interactive charts
-- **🎨 WeasyPrint**: Professional PDF generation capabilities
+- **📄 ReportLab**: Professional PDF generation with pure Python
 
 ### 💡 Inspiration
 

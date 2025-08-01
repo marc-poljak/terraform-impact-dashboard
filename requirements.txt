@@ -51,7 +51,6 @@ tornado==6.5.1; python_version >= '3.9'
 typing-extensions==4.14.1; python_version >= '3.9'
 tzdata==2025.2; python_version >= '2'
 urllib3==2.5.0; python_version >= '3.9'
-weasyprint==66.0; python_version >= '3.9'
 reportlab==4.2.5; python_version >= '3.8'
 webencodings==0.5.1
 zopfli==0.2.3.post1; python_version >= '3.8'
