@@ -61,6 +61,10 @@ class ReportGeneratorComponent(BaseComponent):
         Returns:
             HTML string containing the executive summary
         """
+        # Calculate total if not present
+        if 'total' not in summary:
+            summary['total'] = summary.get('create', 0) + summary.get('update', 0) + summary.get('delete', 0) + summary.get('no-op', 0)
+        
         # Extract risk information
         if isinstance(risk_summary, dict) and 'overall_risk' in risk_summary:
             risk_level = risk_summary['overall_risk'].get('level', 'Unknown')
@@ -427,6 +431,10 @@ class ReportGeneratorComponent(BaseComponent):
         Returns:
             HTML string containing recommendations
         """
+        # Calculate total if not present
+        if 'total' not in summary:
+            summary['total'] = summary.get('create', 0) + summary.get('update', 0) + summary.get('delete', 0) + summary.get('no-op', 0)
+        
         recommendations = []
         
         # Generate recommendations based on risk level
@@ -721,6 +729,10 @@ class ReportGeneratorComponent(BaseComponent):
         # Generate timestamp
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
+        # Calculate total if not present
+        if 'total' not in summary:
+            summary['total'] = summary.get('create', 0) + summary.get('update', 0) + summary.get('delete', 0) + summary.get('no-op', 0)
+        
         # Start building the report
         report_html = f"""
         <!DOCTYPE html>
@@ -847,6 +859,8 @@ class ReportGeneratorComponent(BaseComponent):
         Returns:
             PDF content as bytes, or None if PDF generation is not available
         """
+        # Check WeasyPrint availability
+        
         if not WEASYPRINT_AVAILABLE:
             error_msg = "PDF export is not available."
             if 'WEASYPRINT_ERROR' in globals():
@@ -854,7 +868,9 @@ class ReportGeneratorComponent(BaseComponent):
                     error_msg += " WeasyPrint requires system dependencies. On macOS, install with: brew install pango"
                 else:
                     error_msg += " Please install weasyprint: pip install weasyprint"
-            st.error(error_msg)
+                st.error(f"{error_msg}\n\nDetailed error: {WEASYPRINT_ERROR}")
+            else:
+                st.error(error_msg)
             return None
         
         try:
@@ -870,6 +886,10 @@ class ReportGeneratorComponent(BaseComponent):
                 template_name=template_name
             )
             
+            if not html_content:
+                st.error("Failed to generate HTML content for PDF")
+                return None
+            
             # Add PDF-specific CSS
             pdf_css = self.generate_pdf_css()
             html_with_pdf_css = html_content.decode('utf-8').replace(
@@ -881,10 +901,18 @@ class ReportGeneratorComponent(BaseComponent):
             html_doc = HTML(string=html_with_pdf_css)
             pdf_bytes = html_doc.write_pdf()
             
-            return pdf_bytes
+            if pdf_bytes and len(pdf_bytes) > 0:
+                return pdf_bytes
+            else:
+                st.error("PDF generation produced empty content")
+                return None
             
         except Exception as e:
             st.error(f"Error generating PDF: {str(e)}")
+            # Add more detailed error information for debugging
+            import traceback
+            st.code(traceback.format_exc())
+            st.error("PDF generation failed in export_pdf_report method")
             return None
     
     def generate_pdf_css(self) -> str:
@@ -1077,7 +1105,10 @@ class ReportGeneratorComponent(BaseComponent):
                     st.success("✅ Report generated successfully!")
                     
                     # Provide download options
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    # Use stable timestamp for session state key
+                    if 'report_timestamp' not in st.session_state:
+                        st.session_state.report_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    timestamp = st.session_state.report_timestamp
                     
                     st.markdown("### 📥 Export Options")
                     
@@ -1107,33 +1138,77 @@ class ReportGeneratorComponent(BaseComponent):
                     with col2:
                         # PDF download
                         if WEASYPRINT_AVAILABLE:
-                            if st.button("📑 Generate PDF", help="Generate and download PDF version"):
-                                with st.spinner("Generating PDF..."):
-                                    pdf_content = self.export_pdf_report(
-                                        summary=summary,
-                                        risk_summary=risk_summary,
-                                        resource_changes=resource_changes,
-                                        resource_types=resource_types,
-                                        plan_data=plan_data,
-                                        enhanced_risk_assessor=enhanced_risk_assessor,
-                                        include_sections=include_sections,
-                                        template_name=selected_template
-                                    )
-                                    
-                                    if pdf_content:
-                                        st.download_button(
-                                            label="📥 Download PDF",
-                                            data=pdf_content,
-                                            file_name=f"terraform_plan_report_{selected_template}_{timestamp}.pdf",
-                                            mime="application/pdf",
-                                            help="Download as PDF for formal reviews and printing"
-                                        )
-                        else:
-                            st.info("📑 PDF export requires weasyprint and system dependencies")
-                            if 'WEASYPRINT_ERROR' in globals() and ('libgobject' in WEASYPRINT_ERROR or 'OSError' in WEASYPRINT_ERROR):
-                                st.code("# On macOS:\nbrew install pango\npip install weasyprint", language="bash")
+                            # Initialize PDF content in session state if not exists
+                            pdf_key = f"pdf_content_{selected_template}"
+                            if pdf_key not in st.session_state:
+                                st.session_state[pdf_key] = None
+                            
+                            # Show PDF status
+                            if pdf_key in st.session_state and st.session_state[pdf_key] is not None:
+                                st.info("📄 PDF already generated and ready for download")
                             else:
-                                st.code("pip install weasyprint", language="bash")
+                                st.info("📑 Click 'Generate PDF' to create a downloadable PDF report")
+                            
+                            # New Pure Python PDF Generation
+                            if st.button("📑 Generate PDF", help="Generate beautiful PDF using pure Python - no dependencies!"):
+                                with st.spinner("✨ Creating your beautiful PDF report..."):
+                                    try:
+                                        # Import our new clean PDF generator
+                                        from .pdf_report_generator import create_simple_pdf_generator
+                                        
+                                        # Create the generator
+                                        pdf_gen = create_simple_pdf_generator()
+                                        
+                                        # Generate the PDF
+                                        pdf_content = pdf_gen.generate_pdf_report(
+                                            summary=summary,
+                                            risk_summary=risk_summary,
+                                            resource_changes=resource_changes,
+                                            resource_types=resource_types,
+                                            plan_data=plan_data,
+                                            template_name=selected_template
+                                        )
+                                        
+                                        if pdf_content:
+                                            st.session_state[pdf_key] = pdf_content
+                                            st.success("✅ Beautiful PDF generated successfully!")
+                                        else:
+                                            st.error("❌ PDF generation failed. Please try again.")
+                                            
+                                    except ImportError as e:
+                                        st.error("📦 Missing dependency: Please install reportlab")
+                                        st.code("pip install reportlab")
+                                    except Exception as e:
+                                        st.error(f"❌ Error: {str(e)}")
+                                        st.info("💡 This is our new clean PDF generator - please report any issues!")
+                            
+                            # Show download button if PDF is available
+                            if st.session_state[pdf_key] is not None:
+                                pdf_size_mb = len(st.session_state[pdf_key]) / (1024 * 1024)
+                                st.success(f"📄 PDF ready for download ({pdf_size_mb:.1f} MB)")
+                                
+                                download_clicked = st.download_button(
+                                    label="📥 Download PDF",
+                                    data=st.session_state[pdf_key],
+                                    file_name=f"terraform_plan_report_{selected_template}_{timestamp}.pdf",
+                                    mime="application/pdf",
+                                    help="Download as PDF for formal reviews and printing",
+                                    key=f"download_pdf_{selected_template}"
+                                )
+                                
+                                if download_clicked:
+                                    st.success("📥 Download initiated! Check your browser's download folder.")
+                                
+                                # Clear PDF from session state after download attempt
+                                if st.button("🗑️ Clear PDF", help="Clear generated PDF from memory"):
+                                    st.session_state[pdf_key] = None
+                                    st.rerun()
+                        else:
+                            st.info("📑 PDF export is available with our new Pure Python generator!")
+                            st.info("💡 We've replaced the old WeasyPrint system with a clean, dependency-free solution")
+                            if st.button("📦 Install PDF Generator", help="Install reportlab for PDF generation"):
+                                st.code("pip install reportlab", language="bash")
+                                st.info("After installation, refresh the page to enable PDF generation")
                     
                     with col3:
                         # Preview button
