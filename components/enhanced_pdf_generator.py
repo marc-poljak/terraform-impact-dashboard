@@ -5,13 +5,14 @@ A comprehensive PDF generator using pure Python libraries (reportlab) to generat
 PDFs directly from data structures. This eliminates all WeasyPrint dependencies
 and system library requirements.
 
-Requirements addressed: 1.1, 1.4, 2.1
+Requirements addressed: 1.1, 1.4, 2.1, 2.2, 2.4, 3.5
 """
 
 import io
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 import logging
+from dataclasses import dataclass, field
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -39,15 +40,134 @@ def validate_dependencies() -> Tuple[bool, str]:
 
 # Import reportlab components with error handling
 try:
-    from reportlab.lib.pagesizes import letter, A4
+    from reportlab.lib.pagesizes import letter, A4, LETTER
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units import inch
+    from reportlab.lib.units import inch, cm
     from reportlab.lib import colors
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
     REPORTLAB_AVAILABLE = True
 except ImportError:
     REPORTLAB_AVAILABLE = False
+
+
+@dataclass
+class PDFStyleConfig:
+    """Configuration for PDF styling and appearance"""
+    primary_color: str = "#1f77b4"
+    secondary_color: str = "#2c3e50"
+    accent_color: str = "#3498db"
+    success_color: str = "#27ae60"
+    warning_color: str = "#f39c12"
+    danger_color: str = "#e74c3c"
+    light_bg_color: str = "#f8f9fa"
+    medium_bg_color: str = "#e9ecef"
+    font_family: str = "Helvetica"
+    font_family_bold: str = "Helvetica-Bold"
+    page_size: str = "A4"
+    margins: Dict[str, float] = field(default_factory=lambda: {
+        "top": 72, "bottom": 72, "left": 72, "right": 72
+    })
+
+
+@dataclass
+class PDFSectionConfig:
+    """Configuration for which sections to include in the PDF"""
+    title_page: bool = True
+    executive_summary: bool = True
+    resource_analysis: bool = True
+    risk_assessment: bool = True
+    recommendations: bool = True
+    appendix: bool = False
+
+
+@dataclass
+class PDFTemplateConfig:
+    """Configuration for PDF templates"""
+    name: str
+    style_config: PDFStyleConfig
+    section_config: PDFSectionConfig
+    compact_mode: bool = False
+    detailed_mode: bool = False
+    max_resources_shown: int = 20
+
+
+class PDFTemplateManager:
+    """Manages PDF templates and their configurations"""
+    
+    def __init__(self):
+        """Initialize the template manager with predefined templates"""
+        self.templates = self._create_default_templates()
+    
+    def _create_default_templates(self) -> Dict[str, PDFTemplateConfig]:
+        """Create the default set of PDF templates"""
+        templates = {}
+        
+        # Default template
+        default_style = PDFStyleConfig()
+        default_sections = PDFSectionConfig()
+        templates["default"] = PDFTemplateConfig(
+            name="default",
+            style_config=default_style,
+            section_config=default_sections,
+            max_resources_shown=20
+        )
+        
+        # Compact template
+        compact_style = PDFStyleConfig(
+            primary_color="#34495e",
+            secondary_color="#2c3e50",
+            accent_color="#3498db",
+            margins={"top": 50, "bottom": 50, "left": 50, "right": 50}
+        )
+        compact_sections = PDFSectionConfig(
+            title_page=True,
+            executive_summary=True,
+            resource_analysis=True,
+            risk_assessment=False,
+            recommendations=False,
+            appendix=False
+        )
+        templates["compact"] = PDFTemplateConfig(
+            name="compact",
+            style_config=compact_style,
+            section_config=compact_sections,
+            compact_mode=True,
+            max_resources_shown=10
+        )
+        
+        # Detailed template
+        detailed_style = PDFStyleConfig(
+            primary_color="#2c3e50",
+            secondary_color="#34495e",
+            accent_color="#3498db",
+            margins={"top": 72, "bottom": 72, "left": 72, "right": 72}
+        )
+        detailed_sections = PDFSectionConfig(
+            title_page=True,
+            executive_summary=True,
+            resource_analysis=True,
+            risk_assessment=True,
+            recommendations=True,
+            appendix=True
+        )
+        templates["detailed"] = PDFTemplateConfig(
+            name="detailed",
+            style_config=detailed_style,
+            section_config=detailed_sections,
+            detailed_mode=True,
+            max_resources_shown=50
+        )
+        
+        return templates
+    
+    def get_template(self, template_name: str) -> PDFTemplateConfig:
+        """Get a template configuration by name"""
+        return self.templates.get(template_name, self.templates["default"])
+    
+    def get_available_templates(self) -> List[str]:
+        """Get list of available template names"""
+        return list(self.templates.keys())
 
 
 class EnhancedPDFGenerator:
@@ -60,9 +180,11 @@ class EnhancedPDFGenerator:
         """Initialize the enhanced PDF generator"""
         self.styles = None
         self.is_available = REPORTLAB_AVAILABLE
+        self.template_manager = PDFTemplateManager()
+        self.current_template = None
         
         if self.is_available:
-            self._setup_styles()
+            self._setup_base_styles()
         else:
             logger.warning("Reportlab not available - PDF generation will be disabled")
     
@@ -75,108 +197,153 @@ class EnhancedPDFGenerator:
         """
         return validate_dependencies()
     
-    def _setup_styles(self):
-        """Setup comprehensive PDF styles and themes"""
+    def _setup_base_styles(self):
+        """Setup base PDF styles that will be customized per template"""
+        if not REPORTLAB_AVAILABLE:
+            return
+            
+        self.base_styles = getSampleStyleSheet()
+    
+    def _setup_template_styles(self, style_config: PDFStyleConfig):
+        """Setup comprehensive PDF styles based on template configuration"""
         if not REPORTLAB_AVAILABLE:
             return
             
         self.styles = getSampleStyleSheet()
         
+        # Get colors from config
+        primary_color = colors.HexColor(style_config.primary_color)
+        secondary_color = colors.HexColor(style_config.secondary_color)
+        accent_color = colors.HexColor(style_config.accent_color)
+        success_color = colors.HexColor(style_config.success_color)
+        warning_color = colors.HexColor(style_config.warning_color)
+        danger_color = colors.HexColor(style_config.danger_color)
+        light_bg = colors.HexColor(style_config.light_bg_color)
+        medium_bg = colors.HexColor(style_config.medium_bg_color)
+        
+        # Font settings
+        font_family = style_config.font_family
+        font_family_bold = style_config.font_family_bold
+        
         # Main title style
+        title_size = 28 if not self.current_template.compact_mode else 24
         self.styles.add(ParagraphStyle(
             name='MainTitle',
             parent=self.styles['Title'],
-            fontSize=28,
-            spaceAfter=30,
-            spaceBefore=20,
-            textColor=colors.HexColor('#1f77b4'),
+            fontSize=title_size,
+            spaceAfter=30 if not self.current_template.compact_mode else 20,
+            spaceBefore=20 if not self.current_template.compact_mode else 10,
+            textColor=primary_color,
             alignment=TA_CENTER,
-            fontName='Helvetica-Bold'
+            fontName=font_family_bold
         ))
         
         # Section heading style
+        section_size = 18 if not self.current_template.compact_mode else 16
         self.styles.add(ParagraphStyle(
             name='SectionHeading',
             parent=self.styles['Heading1'],
-            fontSize=18,
-            spaceAfter=15,
-            spaceBefore=20,
-            textColor=colors.HexColor('#2c3e50'),
-            fontName='Helvetica-Bold',
+            fontSize=section_size,
+            spaceAfter=15 if not self.current_template.compact_mode else 10,
+            spaceBefore=20 if not self.current_template.compact_mode else 15,
+            textColor=secondary_color,
+            fontName=font_family_bold,
             borderWidth=1,
-            borderColor=colors.HexColor('#3498db'),
-            borderPadding=8,
-            backColor=colors.HexColor('#f8f9fa')
+            borderColor=accent_color,
+            borderPadding=8 if not self.current_template.compact_mode else 6,
+            backColor=light_bg
         ))
         
         # Subsection heading style
+        subsection_size = 14 if not self.current_template.compact_mode else 12
         self.styles.add(ParagraphStyle(
             name='SubsectionHeading',
             parent=self.styles['Heading2'],
-            fontSize=14,
-            spaceAfter=10,
-            spaceBefore=15,
-            textColor=colors.HexColor('#34495e'),
-            fontName='Helvetica-Bold'
+            fontSize=subsection_size,
+            spaceAfter=10 if not self.current_template.compact_mode else 8,
+            spaceBefore=15 if not self.current_template.compact_mode else 10,
+            textColor=secondary_color,
+            fontName=font_family_bold
         ))
         
         # Body text style
+        body_size = 11 if not self.current_template.compact_mode else 10
         self.styles.add(ParagraphStyle(
             name='CustomBodyText',
             parent=self.styles['Normal'],
-            fontSize=11,
-            spaceAfter=8,
-            leftIndent=10,
-            fontName='Helvetica'
+            fontSize=body_size,
+            spaceAfter=8 if not self.current_template.compact_mode else 6,
+            leftIndent=10 if not self.current_template.compact_mode else 8,
+            fontName=font_family,
+            alignment=TA_LEFT
         ))
         
         # Summary box style
+        summary_size = 12 if not self.current_template.compact_mode else 11
         self.styles.add(ParagraphStyle(
             name='CustomSummaryBox',
             parent=self.styles['Normal'],
-            fontSize=12,
-            spaceAfter=12,
-            spaceBefore=8,
-            leftIndent=20,
-            rightIndent=20,
+            fontSize=summary_size,
+            spaceAfter=12 if not self.current_template.compact_mode else 8,
+            spaceBefore=8 if not self.current_template.compact_mode else 6,
+            leftIndent=20 if not self.current_template.compact_mode else 15,
+            rightIndent=20 if not self.current_template.compact_mode else 15,
             borderWidth=2,
-            borderColor=colors.HexColor('#27ae60'),
-            borderPadding=12,
-            backColor=colors.HexColor('#f8f9fa'),
-            fontName='Helvetica'
+            borderColor=success_color,
+            borderPadding=12 if not self.current_template.compact_mode else 8,
+            backColor=light_bg,
+            fontName=font_family
         ))
         
         # Risk box styles
         self.styles.add(ParagraphStyle(
             name='CustomRiskBoxLow',
             parent=self.styles['CustomSummaryBox'],
-            borderColor=colors.HexColor('#27ae60'),
+            borderColor=success_color,
             backColor=colors.HexColor('#d4edda')
         ))
         
         self.styles.add(ParagraphStyle(
             name='CustomRiskBoxMedium',
             parent=self.styles['CustomSummaryBox'],
-            borderColor=colors.HexColor('#f39c12'),
+            borderColor=warning_color,
             backColor=colors.HexColor('#fff3cd')
         ))
         
         self.styles.add(ParagraphStyle(
             name='CustomRiskBoxHigh',
             parent=self.styles['CustomSummaryBox'],
-            borderColor=colors.HexColor('#e74c3c'),
+            borderColor=danger_color,
             backColor=colors.HexColor('#f8d7da')
         ))
         
         # Metadata style
+        metadata_size = 10 if not self.current_template.compact_mode else 9
         self.styles.add(ParagraphStyle(
             name='Metadata',
             parent=self.styles['Normal'],
-            fontSize=10,
-            spaceAfter=6,
+            fontSize=metadata_size,
+            spaceAfter=6 if not self.current_template.compact_mode else 4,
             textColor=colors.HexColor('#6c757d'),
-            fontName='Helvetica'
+            fontName=font_family
         ))
+        
+        # Detailed mode specific styles
+        if self.current_template.detailed_mode:
+            self.styles.add(ParagraphStyle(
+                name='DetailedBodyText',
+                parent=self.styles['CustomBodyText'],
+                fontSize=10,
+                spaceAfter=6,
+                alignment=TA_JUSTIFY
+            ))
+            
+            self.styles.add(ParagraphStyle(
+                name='AppendixHeading',
+                parent=self.styles['SubsectionHeading'],
+                fontSize=12,
+                textColor=colors.HexColor('#7f8c8d')
+            ))
     
     def generate_comprehensive_report(self,
                                     summary: Dict[str, int],
@@ -185,7 +352,8 @@ class EnhancedPDFGenerator:
                                     resource_types: Dict[str, int],
                                     plan_data: Dict[str, Any],
                                     template_name: str = "default",
-                                    include_sections: Optional[Dict[str, bool]] = None) -> Optional[bytes]:
+                                    include_sections: Optional[Dict[str, bool]] = None,
+                                    custom_style_config: Optional[PDFStyleConfig] = None) -> Optional[bytes]:
         """
         Generate a comprehensive PDF report directly from data structures
         
@@ -197,6 +365,7 @@ class EnhancedPDFGenerator:
             plan_data: Original Terraform plan data
             template_name: Template to use (default, compact, detailed)
             include_sections: Dictionary specifying which sections to include
+            custom_style_config: Optional custom style configuration
             
         Returns:
             PDF content as bytes, or None if generation fails
@@ -212,31 +381,45 @@ class EnhancedPDFGenerator:
             return None
         
         try:
+            # Get template configuration
+            self.current_template = self.template_manager.get_template(template_name)
+            
+            # Use custom style config if provided, otherwise use template's config
+            style_config = custom_style_config or self.current_template.style_config
+            
+            # Setup styles based on template
+            self._setup_template_styles(style_config)
+            
             # Create PDF in memory buffer
             buffer = io.BytesIO()
             
-            # Configure document with proper page size and margins
+            # Get page size
+            page_size = A4 if style_config.page_size == "A4" else LETTER
+            
+            # Configure document with template-specific settings
             doc = SimpleDocTemplate(
                 buffer,
-                pagesize=A4,
-                rightMargin=72,
-                leftMargin=72,
-                topMargin=72,
-                bottomMargin=72,
+                pagesize=page_size,
+                rightMargin=style_config.margins["right"],
+                leftMargin=style_config.margins["left"],
+                topMargin=style_config.margins["top"],
+                bottomMargin=style_config.margins["bottom"],
                 title="Terraform Plan Impact Report"
             )
             
             # Build the story (content elements)
             story = []
             
-            # Default sections to include
+            # Use template sections if include_sections not provided
             if include_sections is None:
+                template_sections = self.current_template.section_config
                 include_sections = {
-                    'title_page': True,
-                    'executive_summary': True,
-                    'resource_analysis': True,
-                    'risk_assessment': True,
-                    'recommendations': True
+                    'title_page': template_sections.title_page,
+                    'executive_summary': template_sections.executive_summary,
+                    'resource_analysis': template_sections.resource_analysis,
+                    'risk_assessment': template_sections.risk_assessment,
+                    'recommendations': template_sections.recommendations,
+                    'appendix': template_sections.appendix
                 }
             
             # Generate sections based on configuration
@@ -255,6 +438,9 @@ class EnhancedPDFGenerator:
             if include_sections.get('recommendations', True):
                 story.extend(self._create_recommendations(summary, risk_summary, resource_changes))
             
+            if include_sections.get('appendix', False):
+                story.extend(self._create_appendix(plan_data, resource_changes))
+            
             # Build the PDF document
             doc.build(story)
             
@@ -263,7 +449,7 @@ class EnhancedPDFGenerator:
             buffer.close()
             
             if pdf_bytes and len(pdf_bytes) > 0:
-                logger.info(f"Successfully generated PDF report ({len(pdf_bytes)} bytes)")
+                logger.info(f"Successfully generated PDF report using '{template_name}' template ({len(pdf_bytes)} bytes)")
                 return pdf_bytes
             else:
                 logger.error("PDF generation produced empty content")
@@ -460,13 +646,15 @@ class EnhancedPDFGenerator:
             story.append(type_table)
             story.append(Spacer(1, 20))
         
-        # Detailed changes (limited to first 20 for readability)
+        # Detailed changes (limited based on template configuration)
         if resource_changes:
-            story.append(Paragraph("Detailed Changes (Top 20)", self.styles['SubsectionHeading']))
+            max_resources = self.current_template.max_resources_shown
+            title = f"Detailed Changes (Top {max_resources})" if len(resource_changes) > max_resources else "Detailed Changes"
+            story.append(Paragraph(title, self.styles['SubsectionHeading']))
             
             change_data = [['Resource Address', 'Action', 'Type', 'Provider']]
             
-            for i, change in enumerate(resource_changes[:20]):
+            for i, change in enumerate(resource_changes[:max_resources]):
                 address = change.get('address', 'Unknown')
                 # Truncate long addresses for better formatting
                 if len(address) > 40:
@@ -498,10 +686,11 @@ class EnhancedPDFGenerator:
             story.append(change_table)
             
             # Add note if there are more changes
-            if len(resource_changes) > 20:
+            max_resources = self.current_template.max_resources_shown
+            if len(resource_changes) > max_resources:
                 story.append(Spacer(1, 10))
                 story.append(Paragraph(
-                    f"<i>... and {len(resource_changes) - 20} more resource changes</i>",
+                    f"<i>... and {len(resource_changes) - max_resources} more resource changes</i>",
                     self.styles['Metadata']
                 ))
         
@@ -664,6 +853,71 @@ class EnhancedPDFGenerator:
         
         return story
     
+    def _create_appendix(self, plan_data: Dict[str, Any], resource_changes: List[Dict]) -> List:
+        """
+        Create appendix section with additional technical details (detailed template only)
+        
+        Args:
+            plan_data: Original Terraform plan data
+            resource_changes: List of resource changes
+            
+        Returns:
+            List of reportlab elements for appendix
+        """
+        story = []
+        
+        story.append(PageBreak())
+        story.append(Paragraph("📎 Appendix", self.styles['SectionHeading']))
+        story.append(Spacer(1, 15))
+        
+        # Technical details section
+        story.append(Paragraph("Technical Details", self.styles['AppendixHeading']))
+        
+        tech_details = [
+            f"Terraform Version: {plan_data.get('terraform_version', 'Unknown')}",
+            f"Format Version: {plan_data.get('format_version', 'Unknown')}",
+            f"Total Resource Changes: {len(resource_changes)}",
+            f"Configuration Files: {len(plan_data.get('configuration', {}).get('root_module', {}).get('resources', []))} resources defined"
+        ]
+        
+        for detail in tech_details:
+            story.append(Paragraph(f"• {detail}", self.styles['DetailedBodyText']))
+        
+        story.append(Spacer(1, 15))
+        
+        # Provider information
+        if 'configuration' in plan_data:
+            providers = plan_data['configuration'].get('provider_config', {})
+            if providers:
+                story.append(Paragraph("Provider Configuration", self.styles['AppendixHeading']))
+                
+                for provider_name, provider_config in providers.items():
+                    story.append(Paragraph(f"• {provider_name}: {provider_config.get('name', 'Unknown')}", 
+                                         self.styles['DetailedBodyText']))
+                
+                story.append(Spacer(1, 15))
+        
+        # Variables information
+        if 'variables' in plan_data:
+            variables = plan_data['variables']
+            if variables:
+                story.append(Paragraph("Variables Used", self.styles['AppendixHeading']))
+                
+                var_count = len(variables)
+                story.append(Paragraph(f"Total variables defined: {var_count}", self.styles['DetailedBodyText']))
+                
+                # Show first few variables as examples
+                for i, (var_name, var_info) in enumerate(list(variables.items())[:5]):
+                    var_value = var_info.get('value', 'Not set')
+                    if isinstance(var_value, str) and len(var_value) > 50:
+                        var_value = var_value[:47] + "..."
+                    story.append(Paragraph(f"• {var_name}: {var_value}", self.styles['DetailedBodyText']))
+                
+                if var_count > 5:
+                    story.append(Paragraph(f"... and {var_count - 5} more variables", self.styles['Metadata']))
+        
+        return story
+    
     def _get_risk_style(self, risk_level: str) -> str:
         """
         Get the appropriate style based on risk level
@@ -699,6 +953,88 @@ class EnhancedPDFGenerator:
             'Critical': 'High-risk deployment requiring extensive review and approval'
         }
         return descriptions.get(risk_level, 'Risk level assessment unavailable')
+    
+    def get_available_templates(self) -> List[str]:
+        """
+        Get list of available template names
+        
+        Returns:
+            List of template names
+        """
+        return self.template_manager.get_available_templates()
+    
+    def get_template_info(self, template_name: str) -> Dict[str, Any]:
+        """
+        Get information about a specific template
+        
+        Args:
+            template_name: Name of the template
+            
+        Returns:
+            Dictionary with template information
+        """
+        template = self.template_manager.get_template(template_name)
+        return {
+            'name': template.name,
+            'compact_mode': template.compact_mode,
+            'detailed_mode': template.detailed_mode,
+            'max_resources_shown': template.max_resources_shown,
+            'sections': {
+                'title_page': template.section_config.title_page,
+                'executive_summary': template.section_config.executive_summary,
+                'resource_analysis': template.section_config.resource_analysis,
+                'risk_assessment': template.section_config.risk_assessment,
+                'recommendations': template.section_config.recommendations,
+                'appendix': template.section_config.appendix
+            },
+            'style': {
+                'primary_color': template.style_config.primary_color,
+                'secondary_color': template.style_config.secondary_color,
+                'accent_color': template.style_config.accent_color,
+                'font_family': template.style_config.font_family,
+                'page_size': template.style_config.page_size
+            }
+        }
+    
+    def create_custom_template(self, 
+                             template_name: str,
+                             style_config: Optional[PDFStyleConfig] = None,
+                             section_config: Optional[PDFSectionConfig] = None,
+                             **kwargs) -> bool:
+        """
+        Create a custom template configuration
+        
+        Args:
+            template_name: Name for the new template
+            style_config: Custom style configuration
+            section_config: Custom section configuration
+            **kwargs: Additional template options
+            
+        Returns:
+            True if template was created successfully
+        """
+        try:
+            if style_config is None:
+                style_config = PDFStyleConfig()
+            if section_config is None:
+                section_config = PDFSectionConfig()
+            
+            custom_template = PDFTemplateConfig(
+                name=template_name,
+                style_config=style_config,
+                section_config=section_config,
+                compact_mode=kwargs.get('compact_mode', False),
+                detailed_mode=kwargs.get('detailed_mode', False),
+                max_resources_shown=kwargs.get('max_resources_shown', 20)
+            )
+            
+            self.template_manager.templates[template_name] = custom_template
+            logger.info(f"Created custom template: {template_name}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to create custom template {template_name}: {str(e)}")
+            return False
 
 
 def create_enhanced_pdf_generator() -> EnhancedPDFGenerator:
