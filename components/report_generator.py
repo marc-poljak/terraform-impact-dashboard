@@ -1442,72 +1442,52 @@ Note: This is a basic fallback report. For full functionality, please install re
                         )
                     
                     with col2:
-                        # PDF download using enhanced PDF generator
+                        # PDF download using enhanced PDF generator - generate immediately like HTML
                         if PDF_GENERATOR_AVAILABLE and self.pdf_generator:
-                            # Initialize PDF content in session state if not exists
-                            pdf_key = f"pdf_content_{selected_template}"
-                            if pdf_key not in st.session_state:
-                                st.session_state[pdf_key] = None
-                            
-                            # Show PDF status
-                            if pdf_key in st.session_state and st.session_state[pdf_key] is not None:
-                                st.info("📄 PDF already generated and ready for download")
-                            else:
-                                st.info("📑 Click 'Generate PDF' to create a professional PDF report")
-                            
-                            # Enhanced PDF Generation
-                            if st.button("📑 Generate PDF", help="Generate professional PDF using enhanced PDF generator"):
-                                with st.spinner("✨ Creating your professional PDF report..."):
-                                    try:
-                                        # Generate the PDF using the enhanced PDF generator
-                                        pdf_content = self.export_pdf_report(
-                                            summary=summary,
-                                            risk_summary=risk_summary,
-                                            resource_changes=resource_changes,
-                                            resource_types=resource_types,
-                                            plan_data=plan_data,
-                                            enhanced_risk_assessor=enhanced_risk_assessor,
-                                            include_sections=include_sections,
-                                            template_name=selected_template
-                                        )
-                                        
-                                        if pdf_content:
-                                            st.session_state[pdf_key] = pdf_content
-                                            st.success("✅ Professional PDF generated successfully!")
+                            with st.spinner("✨ Creating your professional PDF report..."):
+                                try:
+                                    # Generate the PDF using the enhanced PDF generator (same data as HTML)
+                                    pdf_content = self.export_pdf_report(
+                                        summary=summary,
+                                        risk_summary=risk_summary,
+                                        resource_changes=resource_changes,
+                                        resource_types=resource_types,
+                                        plan_data=plan_data,
+                                        enhanced_risk_assessor=enhanced_risk_assessor,
+                                        include_sections=include_sections,
+                                        template_name=selected_template,
+                                        show_progress=False
+                                    )
+                                    
+                                    if pdf_content:
+                                        # Show download button immediately (like the working test)
+                                        pdf_size_kb = len(pdf_content) / 1024
+                                        if pdf_size_kb >= 1024:
+                                            pdf_size_mb = pdf_size_kb / 1024
+                                            st.success(f"✅ PDF generated successfully! ({pdf_size_mb:.1f} MB)")
+                                        elif pdf_size_kb >= 1:
+                                            st.success(f"✅ PDF generated successfully! ({pdf_size_kb:.0f} KB)")
                                         else:
-                                            st.error("❌ PDF generation failed. Please try again.")
-                                            
-                                    except Exception as e:
-                                        st.error(f"❌ Error: {str(e)}")
-                                        st.info("💡 Enhanced PDF generator encountered an issue - please report if this persists!")
-                            
-                            # Show download button if PDF is available
-                            if st.session_state[pdf_key] is not None:
-                                pdf_size_mb = len(st.session_state[pdf_key]) / (1024 * 1024)
-                                st.success(f"📄 PDF ready for download ({pdf_size_mb:.1f} MB)")
-                                
-                                download_clicked = st.download_button(
-                                    label="📥 Download PDF",
-                                    data=st.session_state[pdf_key],
-                                    file_name=f"terraform_plan_report_{selected_template}_{timestamp}.pdf",
-                                    mime="application/pdf",
-                                    help="Download as PDF for formal reviews and printing",
-                                    key=f"download_pdf_{selected_template}"
-                                )
-                                
-                                if download_clicked:
-                                    st.success("📥 Download initiated! Check your browser's download folder.")
-                                
-                                # Clear PDF from session state after download attempt
-                                if st.button("🗑️ Clear PDF", help="Clear generated PDF from memory"):
-                                    st.session_state[pdf_key] = None
-                                    st.rerun()
+                                            st.success("✅ PDF generated successfully!")
+                                        
+                                        st.download_button(
+                                            label="📥 Download PDF",
+                                            data=pdf_content,
+                                            file_name=f"terraform_plan_report_{selected_template}_{timestamp}.pdf",
+                                            mime="application/pdf",
+                                            help="Download as PDF for formal reviews and printing"
+                                        )
+                                    else:
+                                        st.error("❌ PDF generation failed")
+                                        st.info("💡 Try the HTML version instead")
+                                        
+                                except Exception as e:
+                                    st.error(f"❌ PDF Error: {str(e)}")
+                                    st.info("💡 HTML download is still available")
                         else:
                             st.info("📑 PDF export requires reportlab installation")
-                            st.info("💡 Enhanced PDF generator provides professional reports without system dependencies")
-                            if st.button("📦 Install PDF Generator", help="Install reportlab for PDF generation"):
-                                st.code("pip install reportlab", language="bash")
-                                st.info("After installation, refresh the page to enable PDF generation")
+                            st.code("pip install reportlab", language="bash")
+                            st.info("After installation, refresh the page to enable PDF generation")
                     
                     with col3:
                         # Preview button
