@@ -96,6 +96,7 @@ terraform-impact-dashboard/
 │   ├── enhanced_sections.py        # Enhanced feature sections
 │   ├── help_system.py             # Comprehensive help system
 │   ├── report_generator.py        # PDF/HTML report generation
+│   ├── enhanced_pdf_generator.py   # Enhanced PDF generation engine
 │   ├── security_analysis.py       # Security-focused analysis
 │   └── onboarding_checklist.py    # User onboarding
 ├── parsers/
@@ -128,12 +129,13 @@ terraform-impact-dashboard/
 │   ├── error_handler.py           # Error handling and user guidance
 │   ├── progress_tracker.py        # Progress tracking
 │   └── performance_optimizer.py   # Performance optimization
-├── tests/                          # Test suite
+├── tests/                          # Comprehensive test suite
 │   ├── __init__.py                 # Test module initialization
 │   ├── README.md                   # Testing documentation
-│   ├── unit/                       # Unit tests
-│   ├── integration/                # Integration tests
-│   └── performance/                # Performance tests
+│   ├── unit/                       # Unit tests (including PDF generator tests)
+│   ├── integration/                # Integration tests (including PDF integration)
+│   ├── performance/                # Performance tests (including PDF performance)
+│   └── fixtures/                   # Test fixtures and sample data
 ├── assets/
 │   └── styles.css                 # Custom CSS styling
 └── .kiro/                          # Kiro AI configuration
@@ -142,13 +144,27 @@ terraform-impact-dashboard/
 
 ### PDF Report Generation
 
-PDF reports are generated using reportlab, a pure Python library that requires no system dependencies:
+The dashboard includes an **Enhanced PDF Generator** that creates professional reports using reportlab, a pure Python library with no system dependencies:
 
+**Features:**
+- 🎨 **Multiple Templates**: Default, Executive, Technical, and Security-focused templates
+- 📊 **Professional Styling**: Clean layouts with proper typography and spacing
+- 📈 **Rich Content**: Executive summaries, risk analysis, detailed changes, and recommendations
+- 🔧 **Template-Specific Titles**: Each template uses appropriate titles (e.g., "Security Assessment Report")
+- 📏 **Smart Sizing**: Automatic file size optimization and display
+
+**Installation:**
 ```bash
 pip install reportlab
 ```
 
-The reportlab library is included in the requirements.txt file and will be installed automatically when you run `pip install -r requirements.txt`.
+The reportlab library is included in requirements.txt and installs automatically with `pip install -r requirements.txt`.
+
+**Usage:**
+1. Select your preferred template (Default, Executive, Technical, Security)
+2. Choose report sections to include
+3. Click "Generate Report" to create both HTML and PDF simultaneously
+4. Download either format with template-specific titles and styling
 
 ## 📁 Usage Guide
 
@@ -186,10 +202,12 @@ Choose from pre-configured settings:
 - **Provider Filters**: AWS, Azure, GCP, and other cloud providers
 - **Text Search**: Search across resource names, types, and addresses
 
-#### 📄 Report Generation
-1. Select report template (default, executive, technical, security-focused)
-2. Choose sections to include (summary, risk analysis, visualizations, etc.)
-3. Generate HTML or PDF reports for stakeholders
+#### 📄 Enhanced Report Generation
+1. **Template Selection**: Choose from Default, Executive, Technical, or Security templates
+2. **Section Configuration**: Select which sections to include (executive summary, risk analysis, detailed changes, recommendations)
+3. **Simultaneous Generation**: Both HTML and PDF are generated together with matching titles and styling
+4. **Professional Output**: Template-specific titles, optimized layouts, and proper file size reporting
+5. **Easy Download**: Side-by-side download buttons with clear file size information
 
 #### 🎓 Getting Help
 - **Guided Tours**: Interactive tutorials for different workflows
@@ -267,11 +285,17 @@ streamlit run app.py --server.maxUploadSize=200
 
 **PDF generation not working:**
 ```bash
+# Test enhanced PDF generator
+python -c "from components.enhanced_pdf_generator import EnhancedPDFGenerator; print('Enhanced PDF generator working!')"
+
 # Test reportlab installation
 python -c "import reportlab; print('Reportlab working!')"
 
 # Reinstall if needed
 pip install reportlab
+
+# Verify PDF generation works
+python -c "from components.report_generator import ReportGeneratorComponent; print('Report generator ready!')"
 ```
 
 **Enhanced features not available:**
@@ -301,7 +325,8 @@ pip install reportlab
 
 ### Enterprise Features
 - **Workflow-Specific Tours**: Guided tutorials for security reviews, production deployments
-- **Professional Reporting**: Executive summaries, technical details, and visual charts
+- **Enhanced Professional Reporting**: Template-based PDF/HTML generation with executive summaries, technical analysis, and security assessments
+- **Advanced PDF Engine**: Pure Python PDF generation with no system dependencies, multiple templates, and professional styling
 - **Accessibility Compliance**: Full WCAG 2.1 AA compliance with keyboard navigation
 - **Performance Optimization**: Efficient handling of large Terraform plans (200MB+)
 
