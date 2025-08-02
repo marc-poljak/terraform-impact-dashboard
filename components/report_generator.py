@@ -844,9 +844,10 @@ class ReportGeneratorComponent(BaseComponent):
                          plan_data: Dict[str, Any],
                          enhanced_risk_assessor: Optional[Any] = None,
                          include_sections: Optional[Dict[str, bool]] = None,
-                         template_name: str = "default") -> Optional[bytes]:
+                         template_name: str = "default",
+                         show_progress: bool = True) -> Optional[bytes]:
         """
-        Export report as PDF file using enhanced PDF generator
+        Export report as PDF file using enhanced PDF generator with improved error handling
         
         Args:
             summary: Change summary
@@ -857,52 +858,420 @@ class ReportGeneratorComponent(BaseComponent):
             enhanced_risk_assessor: Enhanced risk assessor instance (optional)
             include_sections: Dictionary specifying which sections to include
             template_name: Name of the template to use
+            show_progress: Whether to show progress indicators
             
         Returns:
             PDF content as bytes, or None if PDF generation is not available
         """
         # Check PDF generator availability
         if not PDF_GENERATOR_AVAILABLE or not self.pdf_generator:
-            error_msg = "PDF export is not available."
-            if 'PDF_GENERATOR_ERROR' in globals():
-                error_msg += f" Please install reportlab: pip install reportlab\n\nDetailed error: {PDF_GENERATOR_ERROR}"
-            else:
-                error_msg += " Please install reportlab: pip install reportlab"
-            st.error(error_msg)
+            st.error("❌ **PDF Generation Unavailable**")
+            st.warning("🔧 **Issue:** Enhanced PDF generator is not available")
+            
+            with st.expander("💡 **Installation Instructions**", expanded=True):
+                st.markdown("""
+                **To enable PDF generation, install reportlab:**
+                
+                ```bash
+                pip install reportlab
+                ```
+                
+                **Or if using conda:**
+                
+                ```bash
+                conda install reportlab
+                ```
+                
+                **After installation:**
+                1. Restart your application
+                2. Refresh this page
+                3. Try generating the PDF again
+                """)
+            
+            # Offer fallback option
+            if st.button("📄 Generate Text Report Instead", key="fallback_text_report"):
+                return self._generate_fallback_report(summary, risk_summary, resource_changes, resource_types, plan_data)
+            
             return None
         
         # Validate dependencies
         is_valid, validation_error = self.pdf_generator.validate_dependencies()
         if not is_valid:
-            st.error(f"PDF generation dependencies not available: {validation_error}")
+            st.error(f"❌ **PDF Dependencies Missing:** {validation_error}")
+            
+            with st.expander("🔧 **Dependency Installation Guide**", expanded=True):
+                st.markdown("""
+                **Install missing dependencies:**
+                
+                ```bash
+                pip install reportlab
+                ```
+                
+                **If you're still getting errors:**
+                ```bash
+                pip install --upgrade reportlab pillow
+                ```
+                
+                **After installation, restart the application.**
+                """)
+            
             return None
         
+        # Progress tracking setup
+        progress_container = None
+        progress_bar = None
+        status_text = None
+        
+        if show_progress:
+            progress_container = st.container()
+            with progress_container:
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+        
+        def progress_callback(progress: float, message: str):
+            """Callback function for progress updates"""
+            if progress_bar is not None:
+                progress_bar.progress(progress)
+            if status_text is not None:
+                status_text.text(message)
+        
         try:
-            # Generate PDF using enhanced PDF generator
-            pdf_bytes = self.pdf_generator.generate_comprehensive_report(
+            # Generate PDF using enhanced PDF generator with progress tracking
+            pdf_bytes, error_message = self.pdf_generator.generate_comprehensive_report(
                 summary=summary,
                 risk_summary=risk_summary,
                 resource_changes=resource_changes,
                 resource_types=resource_types,
                 plan_data=plan_data,
                 template_name=template_name,
-                include_sections=include_sections
+                include_sections=include_sections,
+                progress_callback=progress_callback if show_progress else None
             )
             
+            # Clear progress indicators
+            if progress_container:
+                progress_container.empty()
+            
             if pdf_bytes and len(pdf_bytes) > 0:
+                st.success("✅ PDF report generated successfully!")
                 return pdf_bytes
             else:
-                st.error("PDF generation produced empty content")
+                # Handle specific error cases
+                self._handle_pdf_generation_error(error_message, summary, risk_summary, resource_changes, resource_types, plan_data)
                 return None
             
         except Exception as e:
-            st.error(f"Error generating PDF: {str(e)}")
-            # Add more detailed error information for debugging
-            import traceback
-            st.code(traceback.format_exc())
-            st.error("PDF generation failed in export_pdf_report method")
+            # Clear progress indicators on error
+            if progress_container:
+                progress_container.empty()
+            
+            st.error("❌ **Unexpected Error During PDF Generation**")
+            
+            # Categorize error types for better user guidance
+            error_str = str(e).lower()
+            if "memory" in error_str:
+                st.warning("🔧 **Issue:** Insufficient memory to generate PDF")
+                with st.expander("💡 **Memory Issue Solutions**", expanded=True):
+                    st.markdown("""
+                    **Your plan may be too large for PDF generation:**
+                    
+                    **Immediate solutions:**
+                    1. **Use compact template:** Reduces memory usage
+                    2. **Disable sections:** Uncheck some sections below
+                    3. **Filter your data:** Use sidebar filters to reduce dataset size
+                    
+                    **For very large plans:**
+                    - Break Terraform into smaller modules
+                    - Use targeted plans: `terraform plan -target=module.vpc`
+                    - Generate separate reports for different resource types
+                    """)
+                    
+                    # Offer compact template option
+                    if st.button("🔄 Try Compact Template", key="retry_compact"):
+                        return self.export_pdf_report(
+                            summary, risk_summary, resource_changes, resource_types, plan_data,
+                            enhanced_risk_assessor, include_sections, "compact", show_progress
+                        )
+                        
+            elif "import" in error_str or "module" in error_str:
+                st.warning("🔧 **Issue:** Missing required dependencies")
+                with st.expander("💡 **Dependency Solutions**", expanded=True):
+                    st.markdown("""
+                    **Required dependencies may be missing or corrupted:**
+                    
+                    **Try these commands:**
+                    ```bash
+                    pip install --upgrade reportlab
+                    pip install --upgrade pillow
+                    ```
+                    
+                    **If using conda:**
+                    ```bash
+                    conda update reportlab
+                    conda update pillow
+                    ```
+                    
+                    **After updating:**
+                    1. Restart your application
+                    2. Refresh this page
+                    3. Try generating the PDF again
+                    """)
+                    
+            else:
+                st.warning(f"🔧 **Technical Issue:** {str(e)}")
+                with st.expander("🔧 **General Troubleshooting**", expanded=True):
+                    st.markdown("""
+                    **Try these steps:**
+                    1. **Refresh the page** and try again
+                    2. **Use a different template** (compact uses less resources)
+                    3. **Reduce data size** using sidebar filters
+                    4. **Check your internet connection**
+                    5. **Try a different browser** if issues persist
+                    """)
+            
+            # Always offer fallback options
+            st.info("📄 **Alternative Options Available Below**")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("📄 Generate Text Report", key="fallback_after_error"):
+                    return self._generate_fallback_report(summary, risk_summary, resource_changes, resource_types, plan_data)
+            
+            with col2:
+                if st.button("🔄 Retry PDF Generation", key="retry_pdf"):
+                    return self.export_pdf_report(
+                        summary, risk_summary, resource_changes, resource_types, plan_data,
+                        enhanced_risk_assessor, include_sections, template_name, show_progress
+                    )
+            
+            # Show detailed error for debugging if requested
+            if st.checkbox("🔍 Show detailed error information", key="pdf_error_details"):
+                st.exception(e)
+                
             return None
     
+    def _handle_pdf_generation_error(self, error_message: str, summary: Dict[str, int], 
+                                   risk_summary: Dict[str, Any], resource_changes: List[Dict],
+                                   resource_types: Dict[str, int], plan_data: Dict[str, Any]) -> None:
+        """
+        Handle specific PDF generation errors with targeted solutions
+        
+        Args:
+            error_message: The error message from PDF generation
+            summary: Change summary (for fallback options)
+            risk_summary: Risk assessment results (for fallback options)
+            resource_changes: List of resource changes (for fallback options)
+            resource_types: Dictionary of resource types and counts (for fallback options)
+            plan_data: Original plan data (for fallback options)
+        """
+        st.error("❌ **PDF Generation Failed**")
+        
+        if not error_message:
+            error_message = "Unknown error occurred during PDF generation"
+        
+        # Categorize errors and provide specific guidance
+        error_lower = error_message.lower()
+        
+        if "dependencies" in error_lower or "reportlab" in error_lower:
+            st.warning("🔧 **Issue:** Missing or corrupted PDF generation dependencies")
+            with st.expander("💡 **Dependency Installation Guide**", expanded=True):
+                st.markdown("""
+                **Install required dependencies:**
+                
+                ```bash
+                # Using pip
+                pip install reportlab
+                
+                # Or using conda
+                conda install reportlab
+                ```
+                
+                **If you're getting import errors:**
+                ```bash
+                # Reinstall reportlab
+                pip uninstall reportlab
+                pip install reportlab
+                
+                # Also install pillow for image support
+                pip install pillow
+                ```
+                
+                **After installation:**
+                1. Restart your application
+                2. Refresh this page
+                3. Try generating the PDF again
+                """)
+                
+        elif "memory" in error_lower or "size" in error_lower:
+            st.warning("🔧 **Issue:** Plan data too large for PDF generation")
+            with st.expander("💡 **Large Data Solutions**", expanded=True):
+                st.markdown(f"""
+                **Your plan contains {len(resource_changes)} resource changes, which may be too large.**
+                
+                **Immediate solutions:**
+                1. **Use compact template** (reduces memory usage by ~40%)
+                2. **Disable optional sections** (appendix, detailed analysis)
+                3. **Filter data** using sidebar controls
+                
+                **For future large plans:**
+                - Break Terraform into smaller modules
+                - Use targeted plans: `terraform plan -target=specific.resource`
+                - Consider workspace separation for different environments
+                """)
+                
+        elif "validation" in error_lower or "input" in error_lower:
+            st.warning("🔧 **Issue:** Invalid or corrupted plan data")
+            with st.expander("💡 **Data Validation Solutions**", expanded=True):
+                st.markdown("""
+                **Your Terraform plan data may have formatting issues:**
+                
+                **Try these steps:**
+                1. **Re-upload your plan file** - the upload may have been corrupted
+                2. **Generate a fresh plan:**
+                   ```bash
+                   terraform plan -out=tfplan
+                   terraform show -json tfplan > new-plan.json
+                   ```
+                3. **Validate your JSON:**
+                   ```bash
+                   python -m json.tool your-plan.json > /dev/null
+                   ```
+                
+                **Common data issues:**
+                - Missing required fields in plan JSON
+                - Corrupted resource change data
+                - Invalid risk assessment results
+                """)
+                
+        else:
+            st.warning(f"🔧 **Technical Issue:** {error_message}")
+            with st.expander("🔧 **General Error Solutions**", expanded=True):
+                st.markdown("""
+                **General troubleshooting steps:**
+                
+                1. **Try again** - temporary issues sometimes resolve themselves
+                2. **Use different template** - compact template is more reliable
+                3. **Reduce data size** - use filters to limit the dataset
+                4. **Check browser** - try a different browser if issues persist
+                5. **Restart application** - refresh the page and try again
+                """)
+        
+        # Always provide fallback options
+        st.info("📄 **Alternative Report Options**")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("📄 Text Report", key="text_fallback", help="Generate a simple text report"):
+                return self._generate_fallback_report(summary, risk_summary, resource_changes, resource_types, plan_data)
+        
+        with col2:
+            if st.button("📊 Data Export", key="data_export", help="Export raw data as JSON"):
+                return self._export_raw_data(summary, risk_summary, resource_changes, resource_types, plan_data)
+        
+        with col3:
+            if st.button("🔄 Retry PDF", key="retry_pdf_generation", help="Try PDF generation again"):
+                return self.export_pdf_report(
+                    summary, risk_summary, resource_changes, resource_types, plan_data,
+                    show_progress=True
+                )
+    
+    def _generate_fallback_report(self, summary: Dict[str, int], risk_summary: Dict[str, Any],
+                                resource_changes: List[Dict], resource_types: Dict[str, int],
+                                plan_data: Dict[str, Any]) -> bytes:
+        """
+        Generate a fallback text report when PDF generation fails
+        
+        Returns:
+            Text report as bytes for download
+        """
+        try:
+            if self.pdf_generator:
+                report_content, filename = self.pdf_generator.generate_fallback_report(
+                    summary, risk_summary, resource_changes, resource_types, plan_data
+                )
+            else:
+                # Ultimate fallback if PDF generator is not available
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                report_content = f"""
+TERRAFORM PLAN IMPACT REPORT (BASIC FALLBACK)
+Generated: {timestamp}
+
+SUMMARY:
+- Create: {summary.get('create', 0)}
+- Update: {summary.get('update', 0)}
+- Delete: {summary.get('delete', 0)}
+- Total: {len(resource_changes)}
+
+RESOURCE TYPES:
+{chr(10).join(f"- {rtype}: {count}" for rtype, count in sorted(resource_types.items()))}
+
+Note: This is a basic fallback report. For full functionality, please install reportlab.
+"""
+                filename = f"terraform-plan-basic-{datetime.now().strftime('%Y%m%d-%H%M%S')}.txt"
+            
+            # Provide download
+            st.success("✅ Text report generated successfully!")
+            st.download_button(
+                label="📄 Download Text Report",
+                data=report_content.encode('utf-8'),
+                file_name=filename,
+                mime="text/plain",
+                key="download_text_report"
+            )
+            
+            # Show preview
+            with st.expander("👀 Preview Text Report", expanded=False):
+                st.text(report_content[:2000] + "..." if len(report_content) > 2000 else report_content)
+            
+            return report_content.encode('utf-8')
+            
+        except Exception as e:
+            st.error(f"❌ Failed to generate fallback report: {str(e)}")
+            return b"Error generating fallback report"
+    
+    def _export_raw_data(self, summary: Dict[str, int], risk_summary: Dict[str, Any],
+                        resource_changes: List[Dict], resource_types: Dict[str, int],
+                        plan_data: Dict[str, Any]) -> bytes:
+        """
+        Export raw data as JSON when other options fail
+        
+        Returns:
+            JSON data as bytes for download
+        """
+        try:
+            export_data = {
+                "export_timestamp": datetime.now().isoformat(),
+                "summary": summary,
+                "risk_summary": risk_summary,
+                "resource_changes": resource_changes[:100],  # Limit for size
+                "resource_types": resource_types,
+                "plan_metadata": {
+                    "terraform_version": plan_data.get("terraform_version"),
+                    "format_version": plan_data.get("format_version"),
+                    "total_resources": len(resource_changes)
+                }
+            }
+            
+            json_content = json.dumps(export_data, indent=2, default=str)
+            filename = f"terraform-plan-data-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+            
+            st.success("✅ Data export prepared successfully!")
+            st.download_button(
+                label="📊 Download Raw Data (JSON)",
+                data=json_content.encode('utf-8'),
+                file_name=filename,
+                mime="application/json",
+                key="download_raw_data"
+            )
+            
+            st.info("💡 This JSON file contains your plan data and can be imported into other analysis tools.")
+            
+            return json_content.encode('utf-8')
+            
+        except Exception as e:
+            st.error(f"❌ Failed to export raw data: {str(e)}")
+            return b'{"error": "Failed to export data"}'
 
     
     def apply_template_customizations(self, html_content: str, template_name: str) -> str:

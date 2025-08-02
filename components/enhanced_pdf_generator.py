@@ -355,9 +355,10 @@ class EnhancedPDFGenerator:
                                     plan_data: Dict[str, Any],
                                     template_name: str = "default",
                                     include_sections: Optional[Dict[str, bool]] = None,
-                                    custom_style_config: Optional[PDFStyleConfig] = None) -> Optional[bytes]:
+                                    custom_style_config: Optional[PDFStyleConfig] = None,
+                                    progress_callback: Optional[callable] = None) -> Tuple[Optional[bytes], Optional[str]]:
         """
-        Generate a comprehensive PDF report directly from data structures
+        Generate a comprehensive PDF report directly from data structures with enhanced error handling
         
         Args:
             summary: Change summary with create/update/delete counts
@@ -368,21 +369,37 @@ class EnhancedPDFGenerator:
             template_name: Template to use (default, compact, detailed)
             include_sections: Dictionary specifying which sections to include
             custom_style_config: Optional custom style configuration
+            progress_callback: Optional callback function for progress updates
             
         Returns:
-            PDF content as bytes, or None if generation fails
+            Tuple of (PDF content as bytes or None, error message or None)
         """
+        # Initialize progress tracking
+        if progress_callback:
+            progress_callback(0.0, "🔍 Validating dependencies...")
+        
         # Validate dependencies first
         is_valid, error_msg = self.validate_dependencies()
         if not is_valid:
-            logger.error(f"PDF generation failed: {error_msg}")
-            return None
+            detailed_error = f"PDF generation failed due to missing dependencies: {error_msg}"
+            logger.error(detailed_error)
+            return None, detailed_error
         
         if not self.is_available:
-            logger.error("Reportlab not available for PDF generation")
-            return None
+            error_msg = "Reportlab library not available for PDF generation. Please install reportlab: pip install reportlab"
+            logger.error(error_msg)
+            return None, error_msg
+        
+        # Validate input data
+        validation_error = self._validate_input_data(summary, risk_summary, resource_changes, resource_types, plan_data)
+        if validation_error:
+            logger.error(f"Input validation failed: {validation_error}")
+            return None, f"Input data validation failed: {validation_error}"
         
         try:
+            if progress_callback:
+                progress_callback(0.1, "⚙️ Setting up PDF template...")
+            
             # Get template configuration
             self.current_template = self.template_manager.get_template(template_name)
             
@@ -391,6 +408,9 @@ class EnhancedPDFGenerator:
             
             # Setup styles based on template
             self._setup_template_styles(style_config)
+            
+            if progress_callback:
+                progress_callback(0.2, "📄 Creating PDF document structure...")
             
             # Create PDF in memory buffer
             buffer = io.BytesIO()
@@ -424,42 +444,291 @@ class EnhancedPDFGenerator:
                     'appendix': template_sections.appendix
                 }
             
+            # Count enabled sections for progress tracking
+            enabled_sections = sum(1 for enabled in include_sections.values() if enabled)
+            section_progress_step = 0.6 / max(enabled_sections, 1)  # 60% of progress for sections
+            current_section = 0
+            
             # Generate sections based on configuration
             if include_sections.get('title_page', True):
-                story.extend(self._create_title_page(plan_data, summary))
+                if progress_callback:
+                    progress_callback(0.3 + current_section * section_progress_step, "📋 Creating title page...")
+                try:
+                    story.extend(self._create_title_page(plan_data, summary))
+                    current_section += 1
+                except Exception as e:
+                    error_msg = f"Failed to create title page: {str(e)}"
+                    logger.error(error_msg, exc_info=True)
+                    return None, error_msg
             
             if include_sections.get('executive_summary', True):
-                story.extend(self._create_executive_summary(summary, risk_summary))
+                if progress_callback:
+                    progress_callback(0.3 + current_section * section_progress_step, "📊 Creating executive summary...")
+                try:
+                    story.extend(self._create_executive_summary(summary, risk_summary))
+                    current_section += 1
+                except Exception as e:
+                    error_msg = f"Failed to create executive summary: {str(e)}"
+                    logger.error(error_msg, exc_info=True)
+                    return None, error_msg
             
             if include_sections.get('resource_analysis', True):
-                story.extend(self._create_resource_analysis(resource_changes, resource_types))
+                if progress_callback:
+                    progress_callback(0.3 + current_section * section_progress_step, "🔍 Creating resource analysis...")
+                try:
+                    story.extend(self._create_resource_analysis(resource_changes, resource_types))
+                    current_section += 1
+                except Exception as e:
+                    error_msg = f"Failed to create resource analysis: {str(e)}"
+                    logger.error(error_msg, exc_info=True)
+                    return None, error_msg
             
             if include_sections.get('risk_assessment', True):
-                story.extend(self._create_risk_assessment(risk_summary))
+                if progress_callback:
+                    progress_callback(0.3 + current_section * section_progress_step, "⚠️ Creating risk assessment...")
+                try:
+                    story.extend(self._create_risk_assessment(risk_summary))
+                    current_section += 1
+                except Exception as e:
+                    error_msg = f"Failed to create risk assessment: {str(e)}"
+                    logger.error(error_msg, exc_info=True)
+                    return None, error_msg
             
             if include_sections.get('recommendations', True):
-                story.extend(self._create_recommendations(summary, risk_summary, resource_changes))
+                if progress_callback:
+                    progress_callback(0.3 + current_section * section_progress_step, "💡 Creating recommendations...")
+                try:
+                    story.extend(self._create_recommendations(summary, risk_summary, resource_changes))
+                    current_section += 1
+                except Exception as e:
+                    error_msg = f"Failed to create recommendations: {str(e)}"
+                    logger.error(error_msg, exc_info=True)
+                    return None, error_msg
             
             if include_sections.get('appendix', False):
-                story.extend(self._create_appendix(plan_data, resource_changes))
+                if progress_callback:
+                    progress_callback(0.3 + current_section * section_progress_step, "📎 Creating appendix...")
+                try:
+                    story.extend(self._create_appendix(plan_data, resource_changes))
+                    current_section += 1
+                except Exception as e:
+                    error_msg = f"Failed to create appendix: {str(e)}"
+                    logger.error(error_msg, exc_info=True)
+                    return None, error_msg
+            
+            if progress_callback:
+                progress_callback(0.9, "🔨 Building final PDF document...")
             
             # Build the PDF document
-            doc.build(story)
+            try:
+                doc.build(story)
+            except Exception as e:
+                error_msg = f"Failed to build PDF document: {str(e)}"
+                logger.error(error_msg, exc_info=True)
+                return None, error_msg
+            
+            if progress_callback:
+                progress_callback(0.95, "✅ Finalizing PDF...")
             
             # Get the PDF bytes
             pdf_bytes = buffer.getvalue()
             buffer.close()
             
             if pdf_bytes and len(pdf_bytes) > 0:
+                if progress_callback:
+                    progress_callback(1.0, f"✅ PDF generated successfully ({len(pdf_bytes)} bytes)")
                 logger.info(f"Successfully generated PDF report using '{template_name}' template ({len(pdf_bytes)} bytes)")
-                return pdf_bytes
+                return pdf_bytes, None
             else:
-                logger.error("PDF generation produced empty content")
-                return None
+                error_msg = "PDF generation produced empty content - this may indicate a data processing issue"
+                logger.error(error_msg)
+                return None, error_msg
                 
+        except MemoryError as e:
+            error_msg = f"Insufficient memory to generate PDF. Try using a smaller template or reducing data size: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return None, error_msg
+        except ImportError as e:
+            error_msg = f"Missing required PDF generation dependencies: {str(e)}. Please install reportlab: pip install reportlab"
+            logger.error(error_msg, exc_info=True)
+            return None, error_msg
         except Exception as e:
-            logger.error(f"Error generating PDF report: {str(e)}", exc_info=True)
+            error_msg = f"Unexpected error during PDF generation: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return None, error_msg
+    
+    def _validate_input_data(self, summary: Dict[str, int], risk_summary: Dict[str, Any], 
+                           resource_changes: List[Dict], resource_types: Dict[str, int], 
+                           plan_data: Dict[str, Any]) -> Optional[str]:
+        """
+        Validate input data for PDF generation
+        
+        Args:
+            summary: Change summary
+            risk_summary: Risk assessment results
+            resource_changes: List of resource changes
+            resource_types: Dictionary of resource types and counts
+            plan_data: Original Terraform plan data
+            
+        Returns:
+            Error message if validation fails, None if valid
+        """
+        try:
+            # Validate summary data
+            if not isinstance(summary, dict):
+                return "Summary must be a dictionary"
+            
+            required_summary_keys = ['create', 'update', 'delete']
+            for key in required_summary_keys:
+                if key not in summary:
+                    return f"Summary missing required key: {key}"
+                if not isinstance(summary[key], int) or summary[key] < 0:
+                    return f"Summary key '{key}' must be a non-negative integer"
+            
+            # Validate risk summary
+            if not isinstance(risk_summary, dict):
+                return "Risk summary must be a dictionary"
+            
+            # Validate resource changes
+            if not isinstance(resource_changes, list):
+                return "Resource changes must be a list"
+            
+            # Validate resource types
+            if not isinstance(resource_types, dict):
+                return "Resource types must be a dictionary"
+            
+            # Validate plan data
+            if not isinstance(plan_data, dict):
+                return "Plan data must be a dictionary"
+            
+            # Check for reasonable data sizes
+            if len(resource_changes) > 10000:
+                return f"Too many resource changes ({len(resource_changes)}). Maximum supported: 10,000"
+            
+            if len(resource_types) > 1000:
+                return f"Too many resource types ({len(resource_types)}). Maximum supported: 1,000"
+            
             return None
+            
+        except Exception as e:
+            return f"Validation error: {str(e)}"
+    
+    def generate_fallback_report(self, summary: Dict[str, int], risk_summary: Dict[str, Any], 
+                               resource_changes: List[Dict], resource_types: Dict[str, int], 
+                               plan_data: Dict[str, Any]) -> Tuple[str, str]:
+        """
+        Generate a fallback text report when PDF generation fails
+        
+        Args:
+            summary: Change summary
+            risk_summary: Risk assessment results
+            resource_changes: List of resource changes
+            resource_types: Dictionary of resource types and counts
+            plan_data: Original Terraform plan data
+            
+        Returns:
+            Tuple of (report content as text, suggested filename)
+        """
+        try:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            report_lines = []
+            
+            # Header
+            report_lines.extend([
+                "=" * 80,
+                "TERRAFORM PLAN IMPACT REPORT (TEXT FALLBACK)",
+                "=" * 80,
+                f"Generated: {timestamp}",
+                f"Terraform Version: {plan_data.get('terraform_version', 'Unknown')}",
+                "",
+            ])
+            
+            # Executive Summary
+            report_lines.extend([
+                "EXECUTIVE SUMMARY",
+                "-" * 40,
+                f"Total Changes: {summary.get('total', sum(summary.get(k, 0) for k in ['create', 'update', 'delete']))}",
+                f"Create Operations: {summary.get('create', 0)}",
+                f"Update Operations: {summary.get('update', 0)}",
+                f"Delete Operations: {summary.get('delete', 0)}",
+                "",
+            ])
+            
+            # Risk Assessment
+            if isinstance(risk_summary, dict) and 'overall_risk' in risk_summary:
+                risk_level = risk_summary['overall_risk'].get('level', 'Unknown')
+                risk_score = risk_summary['overall_risk'].get('score', 0)
+            else:
+                risk_level = risk_summary.get('level', 'Unknown')
+                risk_score = risk_summary.get('score', 0)
+            
+            report_lines.extend([
+                "RISK ASSESSMENT",
+                "-" * 40,
+                f"Overall Risk Level: {risk_level}",
+                f"Risk Score: {risk_score}/100",
+                "",
+            ])
+            
+            # Resource Type Breakdown
+            report_lines.extend([
+                "RESOURCE TYPE BREAKDOWN",
+                "-" * 40,
+            ])
+            
+            for resource_type, count in sorted(resource_types.items(), key=lambda x: x[1], reverse=True):
+                report_lines.append(f"{resource_type}: {count}")
+            
+            report_lines.append("")
+            
+            # Resource Changes (limited to first 50 for readability)
+            report_lines.extend([
+                "RESOURCE CHANGES (First 50)",
+                "-" * 40,
+            ])
+            
+            for i, change in enumerate(resource_changes[:50]):
+                address = change.get('address', 'Unknown')
+                resource_type = change.get('type', 'Unknown')
+                action = change.get('change', {}).get('actions', ['unknown'])[0]
+                report_lines.append(f"{i+1:3d}. [{action.upper()}] {address} ({resource_type})")
+            
+            if len(resource_changes) > 50:
+                report_lines.append(f"... and {len(resource_changes) - 50} more changes")
+            
+            report_lines.extend([
+                "",
+                "=" * 80,
+                "END OF REPORT",
+                "=" * 80,
+                "",
+                "NOTE: This is a fallback text report generated when PDF creation failed.",
+                "For full functionality, please ensure reportlab is properly installed.",
+            ])
+            
+            report_content = "\n".join(report_lines)
+            filename = f"terraform-plan-report-{datetime.now().strftime('%Y%m%d-%H%M%S')}.txt"
+            
+            return report_content, filename
+            
+        except Exception as e:
+            # Ultimate fallback - minimal report
+            error_report = f"""
+TERRAFORM PLAN REPORT - MINIMAL FALLBACK
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+ERROR: Could not generate detailed report due to: {str(e)}
+
+BASIC SUMMARY:
+- Create: {summary.get('create', 0)}
+- Update: {summary.get('update', 0)}  
+- Delete: {summary.get('delete', 0)}
+- Total Resources: {len(resource_changes)}
+
+Please check your data and try again.
+"""
+            filename = f"terraform-plan-error-{datetime.now().strftime('%Y%m%d-%H%M%S')}.txt"
+            return error_report, filename
     
     def _create_title_page(self, plan_data: Dict[str, Any], summary: Dict[str, int]) -> List:
         """
