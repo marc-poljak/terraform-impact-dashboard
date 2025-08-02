@@ -1,16 +1,21 @@
 """
-Unit tests for Enhanced PDF Generator
+Comprehensive unit tests for Enhanced PDF Generator
 
-Tests the core functionality of the enhanced PDF generator including
+Tests all methods and functionality of the enhanced PDF generator including
 dependency validation, PDF generation, error handling, styling system,
-and template functionality.
+template functionality, and all section generation methods.
 
-Requirements tested: 1.1, 1.4, 2.1, 2.2, 2.4, 3.5
+Requirements tested: 1.1, 1.4, 2.1, 2.2, 2.4, 3.1, 3.2, 3.3, 3.4, 3.5
 """
 
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, Mock
 import io
+import tempfile
+import os
+import time
+import gc
+import psutil
 from typing import Dict, Any, List
 
 # Import the module under test
@@ -21,9 +26,11 @@ from components.enhanced_pdf_generator import (
     PDFTemplateConfig,
     PDFTemplateManager,
     validate_dependencies,
-    create_enhanced_pdf_generator,
     REPORTLAB_AVAILABLE
 )
+
+# Import test fixtures
+from tests.fixtures.pdf_test_fixtures import PDFTestFixtures
 
 
 class TestDependencyValidation(unittest.TestCase):
@@ -628,8 +635,8 @@ class TestFactoryFunction(unittest.TestCase):
     """Test the factory function"""
     
     def test_create_enhanced_pdf_generator(self):
-        """Test the factory function creates a proper instance"""
-        generator = create_enhanced_pdf_generator()
+        """Test creating an enhanced PDF generator instance"""
+        generator = EnhancedPDFGenerator()
         
         self.assertIsInstance(generator, EnhancedPDFGenerator)
         
@@ -1164,5 +1171,624 @@ class TestPDFStylingSystem(unittest.TestCase):
         self.assertIn('AppendixHeading', self.generator.styles.byName)
 
 
+class TestComprehensivePDFGeneration(unittest.TestCase):
+    """Comprehensive tests for all PDF generation methods"""
+    
+    def setUp(self):
+        """Set up test fixtures"""
+        if not REPORTLAB_AVAILABLE:
+            self.skipTest("Reportlab not available")
+        
+        self.generator = EnhancedPDFGenerator()
+        self.fixtures = PDFTestFixtures()
+        
+        # Set up default template for testing
+        default_template = self.generator.template_manager.get_template("default")
+        self.generator.current_template = default_template
+        self.generator._setup_template_styles(default_template.style_config)
+    
+    def test_create_executive_summary_comprehensive(self):
+        """Test comprehensive executive summary creation with various data"""
+        test_cases = [
+            ('minimal_data', self.fixtures.get_minimal_pdf_data()),
+            ('basic_data', self.fixtures.get_basic_pdf_data()),
+            ('comprehensive_data', self.fixtures.get_comprehensive_pdf_data()),
+            ('nested_risk_data', self.fixtures.get_nested_risk_summary_data()),
+            ('flat_risk_data', self.fixtures.get_flat_risk_summary_data())
+        ]
+        
+        for test_name, test_data in test_cases:
+            with self.subTest(test_case=test_name):
+                summary_elements = self.generator._create_executive_summary(
+                    test_data['summary'],
+                    test_data['risk_summary']
+                )
+                
+                self.assertIsInstance(summary_elements, list)
+                self.assertGreater(len(summary_elements), 0)
+                
+                # Should contain section heading
+                section_found = any(
+                    hasattr(elem, 'style') and 
+                    getattr(elem.style, 'name', '') == 'SectionHeading'
+                    for elem in summary_elements
+                    if hasattr(elem, 'style')
+                )
+                self.assertTrue(section_found, f"Executive summary missing section heading in {test_name}")
+    
+    def test_create_resource_analysis_comprehensive(self):
+        """Test comprehensive resource analysis creation"""
+        test_cases = [
+            ('minimal_data', self.fixtures.get_minimal_pdf_data()),
+            ('basic_data', self.fixtures.get_basic_pdf_data()),
+            ('comprehensive_data', self.fixtures.get_comprehensive_pdf_data()),
+            ('large_dataset', self.fixtures.get_large_dataset_pdf_data()),
+            ('security_focused', self.fixtures.get_security_focused_pdf_data())
+        ]
+        
+        for test_name, test_data in test_cases:
+            with self.subTest(test_case=test_name):
+                analysis_elements = self.generator._create_resource_analysis(
+                    test_data['resource_changes'],
+                    test_data['resource_types']
+                )
+                
+                self.assertIsInstance(analysis_elements, list)
+                self.assertGreater(len(analysis_elements), 0)
+                
+                # Should handle empty resource changes gracefully
+                if not test_data['resource_changes']:
+                    # Should still create section with appropriate message
+                    self.assertGreater(len(analysis_elements), 2)
+    
+    def test_create_risk_assessment_comprehensive(self):
+        """Test comprehensive risk assessment creation"""
+        test_cases = [
+            ('minimal_risk', self.fixtures.get_minimal_pdf_data()),
+            ('basic_risk', self.fixtures.get_basic_pdf_data()),
+            ('high_risk', self.fixtures.get_comprehensive_pdf_data()),
+            ('critical_risk', self.fixtures.get_security_focused_pdf_data()),
+            ('nested_risk', self.fixtures.get_nested_risk_summary_data()),
+            ('flat_risk', self.fixtures.get_flat_risk_summary_data())
+        ]
+        
+        for test_name, test_data in test_cases:
+            with self.subTest(test_case=test_name):
+                risk_elements = self.generator._create_risk_assessment(
+                    test_data['risk_summary']
+                )
+                
+                self.assertIsInstance(risk_elements, list)
+                self.assertGreater(len(risk_elements), 0)
+                
+                # Should contain appropriate risk styling based on level
+                risk_level = self._extract_risk_level(test_data['risk_summary'])
+                if risk_level in ['High', 'Critical']:
+                    # Should contain high-risk styling elements
+                    self.assertGreater(len(risk_elements), 3)
+    
+    def test_create_recommendations_comprehensive(self):
+        """Test comprehensive recommendations creation"""
+        test_cases = [
+            ('minimal_data', self.fixtures.get_minimal_pdf_data()),
+            ('basic_data', self.fixtures.get_basic_pdf_data()),
+            ('comprehensive_data', self.fixtures.get_comprehensive_pdf_data()),
+            ('security_focused', self.fixtures.get_security_focused_pdf_data())
+        ]
+        
+        for test_name, test_data in test_cases:
+            with self.subTest(test_case=test_name):
+                rec_elements = self.generator._create_recommendations(
+                    test_data['summary'],
+                    test_data['risk_summary'],
+                    test_data['resource_changes']
+                )
+                
+                self.assertIsInstance(rec_elements, list)
+                self.assertGreater(len(rec_elements), 0)
+                
+                # Should provide more recommendations for higher risk scenarios
+                risk_level = self._extract_risk_level(test_data['risk_summary'])
+                if risk_level in ['High', 'Critical']:
+                    self.assertGreater(len(rec_elements), 5)
+    
+    def test_create_appendix_comprehensive(self):
+        """Test comprehensive appendix creation"""
+        test_cases = [
+            ('basic_data', self.fixtures.get_basic_pdf_data()),
+            ('comprehensive_data', self.fixtures.get_comprehensive_pdf_data()),
+            ('large_dataset', self.fixtures.get_large_dataset_pdf_data())
+        ]
+        
+        for test_name, test_data in test_cases:
+            with self.subTest(test_case=test_name):
+                appendix_elements = self.generator._create_appendix(
+                    test_data['plan_data'],
+                    test_data['resource_changes']
+                )
+                
+                self.assertIsInstance(appendix_elements, list)
+                self.assertGreater(len(appendix_elements), 0)
+                
+                # Should contain detailed technical information
+                self.assertGreater(len(appendix_elements), 3)
+    
+    def test_all_template_types_comprehensive(self):
+        """Test PDF generation with all template types"""
+        templates = ["default", "compact", "detailed"]
+        test_data = self.fixtures.get_comprehensive_pdf_data()
+        
+        for template_name in templates:
+            with self.subTest(template=template_name):
+                pdf_bytes = self.generator.generate_comprehensive_report(
+                    summary=test_data['summary'],
+                    risk_summary=test_data['risk_summary'],
+                    resource_changes=test_data['resource_changes'],
+                    resource_types=test_data['resource_types'],
+                    plan_data=test_data['plan_data'],
+                    template_name=template_name
+                )
+                
+                self.assertIsNotNone(pdf_bytes)
+                self.assertIsInstance(pdf_bytes, bytes)
+                self.assertGreater(len(pdf_bytes), 1000)  # Should be substantial
+                self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+    
+    def test_section_configuration_comprehensive(self):
+        """Test all possible section configurations"""
+        test_data = self.fixtures.get_comprehensive_pdf_data()
+        
+        section_combinations = [
+            # Minimal sections
+            {
+                'title_page': True,
+                'executive_summary': False,
+                'resource_analysis': False,
+                'risk_assessment': False,
+                'recommendations': False,
+                'appendix': False
+            },
+            # Executive summary only
+            {
+                'title_page': True,
+                'executive_summary': True,
+                'resource_analysis': False,
+                'risk_assessment': False,
+                'recommendations': False,
+                'appendix': False
+            },
+            # Analysis sections only
+            {
+                'title_page': True,
+                'executive_summary': False,
+                'resource_analysis': True,
+                'risk_assessment': True,
+                'recommendations': False,
+                'appendix': False
+            },
+            # All sections
+            {
+                'title_page': True,
+                'executive_summary': True,
+                'resource_analysis': True,
+                'risk_assessment': True,
+                'recommendations': True,
+                'appendix': True
+            },
+            # No title page (edge case)
+            {
+                'title_page': False,
+                'executive_summary': True,
+                'resource_analysis': True,
+                'risk_assessment': True,
+                'recommendations': True,
+                'appendix': False
+            }
+        ]
+        
+        for i, sections in enumerate(section_combinations):
+            with self.subTest(combination=i):
+                pdf_bytes = self.generator.generate_comprehensive_report(
+                    summary=test_data['summary'],
+                    risk_summary=test_data['risk_summary'],
+                    resource_changes=test_data['resource_changes'],
+                    resource_types=test_data['resource_types'],
+                    plan_data=test_data['plan_data'],
+                    include_sections=sections
+                )
+                
+                self.assertIsNotNone(pdf_bytes)
+                self.assertIsInstance(pdf_bytes, bytes)
+                self.assertGreater(len(pdf_bytes), 500)
+                self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+    
+    def test_edge_cases_comprehensive(self):
+        """Test edge cases and unusual data"""
+        edge_case_data = self.fixtures.get_edge_case_pdf_data()
+        
+        # Test with edge case data
+        pdf_bytes = self.generator.generate_comprehensive_report(
+            summary=edge_case_data['summary'],
+            risk_summary=edge_case_data['risk_summary'],
+            resource_changes=edge_case_data['resource_changes'],
+            resource_types=edge_case_data['resource_types'],
+            plan_data=edge_case_data['plan_data']
+        )
+        
+        self.assertIsNotNone(pdf_bytes)
+        self.assertIsInstance(pdf_bytes, bytes)
+        self.assertGreater(len(pdf_bytes), 0)
+        self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+        
+        # Test with None values
+        pdf_bytes_none = self.generator.generate_comprehensive_report(
+            summary=None,
+            risk_summary=None,
+            resource_changes=None,
+            resource_types=None,
+            plan_data=None
+        )
+        
+        # Should handle gracefully
+        self.assertIsNone(pdf_bytes_none)
+        
+        # Test with empty structures
+        empty_data = {
+            'summary': {},
+            'risk_summary': {},
+            'resource_changes': [],
+            'resource_types': {},
+            'plan_data': {}
+        }
+        
+        pdf_bytes_empty = self.generator.generate_comprehensive_report(**empty_data)
+        self.assertIsNotNone(pdf_bytes_empty)
+    
+    def test_custom_style_configuration(self):
+        """Test PDF generation with custom style configurations"""
+        test_data = self.fixtures.get_basic_pdf_data()
+        
+        # Test with custom colors
+        custom_style = PDFStyleConfig(
+            primary_color="#ff0000",
+            secondary_color="#00ff00",
+            accent_color="#0000ff",
+            font_family="Times-Roman",
+            page_size="LETTER"
+        )
+        
+        pdf_bytes = self.generator.generate_comprehensive_report(
+            summary=test_data['summary'],
+            risk_summary=test_data['risk_summary'],
+            resource_changes=test_data['resource_changes'],
+            resource_types=test_data['resource_types'],
+            plan_data=test_data['plan_data'],
+            custom_style_config=custom_style
+        )
+        
+        self.assertIsNotNone(pdf_bytes)
+        self.assertIsInstance(pdf_bytes, bytes)
+        self.assertGreater(len(pdf_bytes), 0)
+        self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+    
+    def test_error_handling_comprehensive(self):
+        """Test comprehensive error handling scenarios"""
+        test_data = self.fixtures.get_basic_pdf_data()
+        
+        # Test with invalid template name
+        pdf_bytes = self.generator.generate_comprehensive_report(
+            summary=test_data['summary'],
+            risk_summary=test_data['risk_summary'],
+            resource_changes=test_data['resource_changes'],
+            resource_types=test_data['resource_types'],
+            plan_data=test_data['plan_data'],
+            template_name="nonexistent_template"
+        )
+        
+        # Should fall back to default template
+        self.assertIsNotNone(pdf_bytes)
+        
+        # Test with malformed data structures
+        malformed_summary = "not_a_dict"
+        pdf_bytes_malformed = self.generator.generate_comprehensive_report(
+            summary=malformed_summary,
+            risk_summary=test_data['risk_summary'],
+            resource_changes=test_data['resource_changes'],
+            resource_types=test_data['resource_types'],
+            plan_data=test_data['plan_data']
+        )
+        
+        # Should handle gracefully
+        self.assertIsNone(pdf_bytes_malformed)
+    
+    def _extract_risk_level(self, risk_summary: Dict[str, Any]) -> str:
+        """Helper method to extract risk level from various risk summary formats"""
+        if isinstance(risk_summary, dict):
+            if 'overall_risk' in risk_summary:
+                return risk_summary['overall_risk'].get('level', 'Unknown')
+            else:
+                return risk_summary.get('level', 'Unknown')
+        return 'Unknown'
+
+
+class TestPDFGenerationPerformance(unittest.TestCase):
+    """Performance tests for PDF generation"""
+    
+    def setUp(self):
+        """Set up performance test fixtures"""
+        if not REPORTLAB_AVAILABLE:
+            self.skipTest("Reportlab not available")
+        
+        self.generator = EnhancedPDFGenerator()
+        self.fixtures = PDFTestFixtures()
+        self.process = psutil.Process()
+    
+    def test_large_dataset_performance(self):
+        """Test PDF generation performance with large datasets"""
+        large_data = self.fixtures.get_large_dataset_pdf_data()
+        
+        # Measure performance
+        start_time = time.time()
+        initial_memory = self.process.memory_info().rss / 1024 / 1024  # MB
+        
+        pdf_bytes = self.generator.generate_comprehensive_report(
+            summary=large_data['summary'],
+            risk_summary=large_data['risk_summary'],
+            resource_changes=large_data['resource_changes'],
+            resource_types=large_data['resource_types'],
+            plan_data=large_data['plan_data']
+        )
+        
+        end_time = time.time()
+        final_memory = self.process.memory_info().rss / 1024 / 1024  # MB
+        
+        duration = end_time - start_time
+        memory_used = final_memory - initial_memory
+        
+        # Verify PDF was generated
+        self.assertIsNotNone(pdf_bytes)
+        self.assertIsInstance(pdf_bytes, bytes)
+        self.assertGreater(len(pdf_bytes), 0)
+        
+        # Performance assertions (based on requirements)
+        self.assertLess(duration, 10.0, f"Large dataset PDF generation took {duration:.2f}s, should be < 10s")
+        self.assertLess(memory_used, 500, f"Large dataset PDF generation used {memory_used:.1f}MB, should be < 500MB")
+        
+        print(f"Large dataset performance: {duration:.3f}s, {memory_used:.1f}MB, {len(pdf_bytes)} bytes")
+    
+    def test_multiple_generation_performance(self):
+        """Test performance of multiple PDF generations"""
+        test_data = self.fixtures.get_comprehensive_pdf_data()
+        
+        generation_times = []
+        memory_usage = []
+        
+        for i in range(5):  # Generate 5 PDFs
+            gc.collect()  # Clean up before each test
+            
+            start_time = time.time()
+            initial_memory = self.process.memory_info().rss / 1024 / 1024
+            
+            pdf_bytes = self.generator.generate_comprehensive_report(
+                summary=test_data['summary'],
+                risk_summary=test_data['risk_summary'],
+                resource_changes=test_data['resource_changes'],
+                resource_types=test_data['resource_types'],
+                plan_data=test_data['plan_data']
+            )
+            
+            end_time = time.time()
+            final_memory = self.process.memory_info().rss / 1024 / 1024
+            
+            self.assertIsNotNone(pdf_bytes)
+            
+            generation_times.append(end_time - start_time)
+            memory_usage.append(final_memory - initial_memory)
+        
+        # Check performance consistency
+        avg_time = sum(generation_times) / len(generation_times)
+        max_time = max(generation_times)
+        avg_memory = sum(memory_usage) / len(memory_usage)
+        
+        self.assertLess(avg_time, 5.0, f"Average generation time {avg_time:.3f}s should be < 5s")
+        self.assertLess(max_time, 8.0, f"Max generation time {max_time:.3f}s should be < 8s")
+        self.assertLess(avg_memory, 200, f"Average memory usage {avg_memory:.1f}MB should be < 200MB")
+        
+        print(f"Multiple generation performance: avg={avg_time:.3f}s, max={max_time:.3f}s, avg_mem={avg_memory:.1f}MB")
+    
+    def test_template_switching_performance(self):
+        """Test performance when switching between templates"""
+        test_data = self.fixtures.get_basic_pdf_data()
+        templates = ["default", "compact", "detailed"]
+        
+        template_times = {}
+        
+        for template in templates:
+            start_time = time.time()
+            
+            pdf_bytes = self.generator.generate_comprehensive_report(
+                summary=test_data['summary'],
+                risk_summary=test_data['risk_summary'],
+                resource_changes=test_data['resource_changes'],
+                resource_types=test_data['resource_types'],
+                plan_data=test_data['plan_data'],
+                template_name=template
+            )
+            
+            end_time = time.time()
+            template_times[template] = end_time - start_time
+            
+            self.assertIsNotNone(pdf_bytes)
+        
+        # All templates should generate within reasonable time
+        for template, duration in template_times.items():
+            self.assertLess(duration, 3.0, f"Template {template} took {duration:.3f}s, should be < 3s")
+        
+        print(f"Template performance: {template_times}")
+
+
+class TestPDFIntegrationScenarios(unittest.TestCase):
+    """Integration-style tests for end-to-end PDF generation scenarios"""
+    
+    def setUp(self):
+        """Set up integration test fixtures"""
+        if not REPORTLAB_AVAILABLE:
+            self.skipTest("Reportlab not available")
+        
+        self.generator = EnhancedPDFGenerator()
+        self.fixtures = PDFTestFixtures()
+    
+    def test_complete_workflow_minimal_to_comprehensive(self):
+        """Test complete workflow from minimal to comprehensive data"""
+        test_scenarios = [
+            ('minimal', self.fixtures.get_minimal_pdf_data()),
+            ('basic', self.fixtures.get_basic_pdf_data()),
+            ('comprehensive', self.fixtures.get_comprehensive_pdf_data()),
+            ('security_focused', self.fixtures.get_security_focused_pdf_data())
+        ]
+        
+        generated_pdfs = {}
+        
+        for scenario_name, test_data in test_scenarios:
+            pdf_bytes = self.generator.generate_comprehensive_report(
+                summary=test_data['summary'],
+                risk_summary=test_data['risk_summary'],
+                resource_changes=test_data['resource_changes'],
+                resource_types=test_data['resource_types'],
+                plan_data=test_data['plan_data']
+            )
+            
+            self.assertIsNotNone(pdf_bytes, f"Failed to generate PDF for {scenario_name}")
+            self.assertIsInstance(pdf_bytes, bytes)
+            self.assertGreater(len(pdf_bytes), 0)
+            self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+            
+            generated_pdfs[scenario_name] = len(pdf_bytes)
+        
+        # More comprehensive scenarios should generally produce larger PDFs
+        self.assertLess(generated_pdfs['minimal'], generated_pdfs['comprehensive'])
+        self.assertLess(generated_pdfs['basic'], generated_pdfs['comprehensive'])
+        
+        print(f"PDF sizes: {generated_pdfs}")
+    
+    def test_pdf_file_creation_and_validation(self):
+        """Test actual PDF file creation and basic validation"""
+        test_data = self.fixtures.get_comprehensive_pdf_data()
+        
+        pdf_bytes = self.generator.generate_comprehensive_report(
+            summary=test_data['summary'],
+            risk_summary=test_data['risk_summary'],
+            resource_changes=test_data['resource_changes'],
+            resource_types=test_data['resource_types'],
+            plan_data=test_data['plan_data']
+        )
+        
+        self.assertIsNotNone(pdf_bytes)
+        
+        # Write to temporary file and validate
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_file:
+            tmp_file.write(pdf_bytes)
+            tmp_file.flush()
+            
+            # Verify file exists and has content
+            self.assertTrue(os.path.exists(tmp_file.name))
+            file_size = os.path.getsize(tmp_file.name)
+            self.assertGreater(file_size, 1000)  # Should be at least 1KB
+            
+            # Read back and verify PDF structure
+            with open(tmp_file.name, 'rb') as f:
+                file_content = f.read()
+                self.assertEqual(file_content, pdf_bytes)
+                self.assertTrue(file_content.startswith(b'%PDF'))
+                self.assertIn(b'%%EOF', file_content)
+            
+            # Clean up
+            os.unlink(tmp_file.name)
+    
+    def test_concurrent_pdf_generation(self):
+        """Test concurrent PDF generation for thread safety"""
+        import threading
+        import queue
+        
+        test_data = self.fixtures.get_basic_pdf_data()
+        results_queue = queue.Queue()
+        errors_queue = queue.Queue()
+        
+        def generate_pdf_worker(worker_id):
+            try:
+                pdf_bytes = self.generator.generate_comprehensive_report(
+                    summary=test_data['summary'],
+                    risk_summary=test_data['risk_summary'],
+                    resource_changes=test_data['resource_changes'],
+                    resource_types=test_data['resource_types'],
+                    plan_data=test_data['plan_data']
+                )
+                results_queue.put((worker_id, len(pdf_bytes) if pdf_bytes else 0))
+            except Exception as e:
+                errors_queue.put((worker_id, str(e)))
+        
+        # Start multiple threads
+        threads = []
+        for i in range(3):
+            thread = threading.Thread(target=generate_pdf_worker, args=(i,))
+            threads.append(thread)
+            thread.start()
+        
+        # Wait for completion
+        for thread in threads:
+            thread.join(timeout=30)
+        
+        # Check results
+        self.assertTrue(errors_queue.empty(), f"Concurrent generation errors: {list(errors_queue.queue)}")
+        
+        results = []
+        while not results_queue.empty():
+            results.append(results_queue.get())
+        
+        self.assertEqual(len(results), 3, "Not all concurrent generations completed")
+        
+        # All should have generated valid PDFs
+        for worker_id, pdf_size in results:
+            self.assertGreater(pdf_size, 0, f"Worker {worker_id} generated empty PDF")
+        
+        print(f"Concurrent generation results: {results}")
+    
+    def test_memory_cleanup_after_generation(self):
+        """Test that memory is properly cleaned up after PDF generation"""
+        process = psutil.Process()
+        initial_memory = process.memory_info().rss / 1024 / 1024
+        
+        # Generate multiple PDFs
+        for i in range(10):
+            test_data = self.fixtures.get_basic_pdf_data()
+            pdf_bytes = self.generator.generate_comprehensive_report(
+                summary=test_data['summary'],
+                risk_summary=test_data['risk_summary'],
+                resource_changes=test_data['resource_changes'],
+                resource_types=test_data['resource_types'],
+                plan_data=test_data['plan_data']
+            )
+            self.assertIsNotNone(pdf_bytes)
+            
+            # Explicitly delete reference
+            del pdf_bytes
+        
+        # Force garbage collection
+        gc.collect()
+        
+        final_memory = process.memory_info().rss / 1024 / 1024
+        memory_growth = final_memory - initial_memory
+        
+        # Memory growth should be reasonable (less than 100MB for 10 PDFs)
+        self.assertLess(memory_growth, 100, 
+                       f"Memory grew by {memory_growth:.1f}MB after 10 PDF generations")
+        
+        print(f"Memory usage: initial={initial_memory:.1f}MB, final={final_memory:.1f}MB, growth={memory_growth:.1f}MB")
+
+
 if __name__ == '__main__':
-    unittest.main()
+    # Set up test process monitoring
+    current_process = psutil.Process()
+    
+    # Run the tests
+    unittest.main(verbosity=2)
