@@ -356,6 +356,7 @@ class EnhancedPDFGenerator:
                                     template_name: str = "default",
                                     include_sections: Optional[Dict[str, bool]] = None,
                                     custom_style_config: Optional[PDFStyleConfig] = None,
+                                    custom_title: Optional[str] = None,
                                     progress_callback: Optional[callable] = None) -> Tuple[Optional[bytes], Optional[str]]:
         """
         Generate a comprehensive PDF report directly from data structures with enhanced error handling
@@ -369,6 +370,7 @@ class EnhancedPDFGenerator:
             template_name: Template to use (default, compact, detailed)
             include_sections: Dictionary specifying which sections to include
             custom_style_config: Optional custom style configuration
+            custom_title: Optional custom title for the report
             progress_callback: Optional callback function for progress updates
             
         Returns:
@@ -402,6 +404,9 @@ class EnhancedPDFGenerator:
             
             # Get template configuration
             self.current_template = self.template_manager.get_template(template_name)
+            
+            # Store custom title if provided
+            self.custom_title = custom_title or "Terraform Infrastructure Analysis Report"
             
             # Use custom style config if provided, otherwise use template's config
             style_config = custom_style_config or self.current_template.style_config
@@ -873,7 +878,7 @@ Please check your data and try again.
         header_elements = []
         
         # Header line
-        header_line_data = [['Terraform Infrastructure Analysis Report']]
+        header_line_data = [[self.custom_title]]
         header_table = Table(header_line_data, colWidths=[6*inch])
         header_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#2c3e50')),

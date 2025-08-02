@@ -937,6 +937,9 @@ class ReportGeneratorComponent(BaseComponent):
         
         try:
             # Generate PDF using enhanced PDF generator with progress tracking
+            # Get template-specific title
+            custom_title = self.get_template_title(template_name)
+            
             pdf_bytes, error_message = self.pdf_generator.generate_comprehensive_report(
                 summary=summary,
                 risk_summary=risk_summary,
@@ -945,6 +948,7 @@ class ReportGeneratorComponent(BaseComponent):
                 plan_data=plan_data,
                 template_name=template_name,
                 include_sections=include_sections,
+                custom_title=custom_title,
                 progress_callback=progress_callback if show_progress else None
             )
             
@@ -953,7 +957,6 @@ class ReportGeneratorComponent(BaseComponent):
                 progress_container.empty()
             
             if pdf_bytes and len(pdf_bytes) > 0:
-                st.success("✅ PDF report generated successfully!")
                 return pdf_bytes
             else:
                 # Handle specific error cases
@@ -1336,6 +1339,25 @@ Note: This is a basic fallback report. For full functionality, please install re
             "security": "Security-focused report highlighting security considerations"
         }
     
+    def get_template_title(self, template_name: str) -> str:
+        """
+        Get the title for a specific template
+        
+        Args:
+            template_name: Name of the template
+            
+        Returns:
+            Template-specific title
+        """
+        templates = {
+            "default": "Terraform Plan Impact Report",
+            "executive": "Executive Summary Report",
+            "technical": "Technical Analysis Report", 
+            "security": "Security Assessment Report"
+        }
+        
+        return templates.get(template_name, "Terraform Plan Impact Report")
+    
     def render_report_generator(self,
                               summary: Dict[str, int],
                               risk_summary: Dict[str, Any],
@@ -1407,32 +1429,65 @@ Note: This is a basic fallback report. For full functionality, please install re
                         include_sections=include_sections
                     )
                     
-                    # Show success message
-                    st.success("✅ Report generated successfully!")
-                    
-                    # Provide download options
                     # Use stable timestamp for session state key
                     if 'report_timestamp' not in st.session_state:
                         st.session_state.report_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     timestamp = st.session_state.report_timestamp
                     
+                    # Generate HTML content
+                    html_content = self.export_html_report(
+                        summary=summary,
+                        risk_summary=risk_summary,
+                        resource_changes=resource_changes,
+                        resource_types=resource_types,
+                        plan_data=plan_data,
+                        enhanced_risk_assessor=enhanced_risk_assessor,
+                        include_sections=include_sections,
+                        template_name=selected_template
+                    )
+                    
+                    # Generate PDF content
+                    pdf_content = None
+                    pdf_error = None
+                    if PDF_GENERATOR_AVAILABLE and self.pdf_generator:
+                        try:
+                            pdf_content = self.export_pdf_report(
+                                summary=summary,
+                                risk_summary=risk_summary,
+                                resource_changes=resource_changes,
+                                resource_types=resource_types,
+                                plan_data=plan_data,
+                                enhanced_risk_assessor=enhanced_risk_assessor,
+                                include_sections=include_sections,
+                                template_name=selected_template,
+                                show_progress=False
+                            )
+                        except Exception as e:
+                            pdf_error = str(e)
+                    
+                    # Show consolidated success messages (only the detailed one)
+                    if pdf_content:
+                        pdf_size_kb = len(pdf_content) / 1024
+                        if pdf_size_kb >= 1024:
+                            pdf_size_mb = pdf_size_kb / 1024
+                            st.success(f"✅ Report generated successfully! HTML and PDF ({pdf_size_mb:.1f} MB) ready for download.")
+                        elif pdf_size_kb >= 1:
+                            st.success(f"✅ Report generated successfully! HTML and PDF ({pdf_size_kb:.0f} KB) ready for download.")
+                        else:
+                            st.success("✅ Report generated successfully! HTML and PDF ready for download.")
+                    else:
+                        st.success("✅ Report generated successfully! HTML ready for download.")
+                        if pdf_error:
+                            st.warning(f"⚠️ PDF generation failed: {pdf_error}")
+                        elif not PDF_GENERATOR_AVAILABLE:
+                            st.info("💡 Install reportlab to enable PDF generation: `pip install reportlab`")
+                    
                     st.markdown("### 📥 Export Options")
                     
-                    col1, col2, col3 = st.columns(3)
+                    # Download buttons on the same line
+                    col1, col2, col3 = st.columns([1, 1, 1])
                     
                     with col1:
-                        # HTML download
-                        html_content = self.export_html_report(
-                            summary=summary,
-                            risk_summary=risk_summary,
-                            resource_changes=resource_changes,
-                            resource_types=resource_types,
-                            plan_data=plan_data,
-                            enhanced_risk_assessor=enhanced_risk_assessor,
-                            include_sections=include_sections,
-                            template_name=selected_template
-                        )
-                        
                         st.download_button(
                             label="📄 Download HTML",
                             data=html_content,
@@ -1442,55 +1497,18 @@ Note: This is a basic fallback report. For full functionality, please install re
                         )
                     
                     with col2:
-                        # PDF download using enhanced PDF generator - generate immediately like HTML
-                        if PDF_GENERATOR_AVAILABLE and self.pdf_generator:
-                            with st.spinner("✨ Creating your professional PDF report..."):
-                                try:
-                                    # Generate the PDF using the enhanced PDF generator (same data as HTML)
-                                    pdf_content = self.export_pdf_report(
-                                        summary=summary,
-                                        risk_summary=risk_summary,
-                                        resource_changes=resource_changes,
-                                        resource_types=resource_types,
-                                        plan_data=plan_data,
-                                        enhanced_risk_assessor=enhanced_risk_assessor,
-                                        include_sections=include_sections,
-                                        template_name=selected_template,
-                                        show_progress=False
-                                    )
-                                    
-                                    if pdf_content:
-                                        # Show download button immediately (like the working test)
-                                        pdf_size_kb = len(pdf_content) / 1024
-                                        if pdf_size_kb >= 1024:
-                                            pdf_size_mb = pdf_size_kb / 1024
-                                            st.success(f"✅ PDF generated successfully! ({pdf_size_mb:.1f} MB)")
-                                        elif pdf_size_kb >= 1:
-                                            st.success(f"✅ PDF generated successfully! ({pdf_size_kb:.0f} KB)")
-                                        else:
-                                            st.success("✅ PDF generated successfully!")
-                                        
-                                        st.download_button(
-                                            label="📥 Download PDF",
-                                            data=pdf_content,
-                                            file_name=f"terraform_plan_report_{selected_template}_{timestamp}.pdf",
-                                            mime="application/pdf",
-                                            help="Download as PDF for formal reviews and printing"
-                                        )
-                                    else:
-                                        st.error("❌ PDF generation failed")
-                                        st.info("💡 Try the HTML version instead")
-                                        
-                                except Exception as e:
-                                    st.error(f"❌ PDF Error: {str(e)}")
-                                    st.info("💡 HTML download is still available")
+                        if pdf_content:
+                            st.download_button(
+                                label="📥 Download PDF",
+                                data=pdf_content,
+                                file_name=f"terraform_plan_report_{selected_template}_{timestamp}.pdf",
+                                mime="application/pdf",
+                                help="Download as PDF for formal reviews and printing"
+                            )
                         else:
-                            st.info("📑 PDF export requires reportlab installation")
-                            st.code("pip install reportlab", language="bash")
-                            st.info("After installation, refresh the page to enable PDF generation")
+                            st.button("📥 Download PDF", disabled=True, help="PDF generation failed or not available")
                     
                     with col3:
-                        # Preview button
                         if st.button("👁️ Preview Report"):
                             st.markdown("### Report Preview")
                             st.components.v1.html(html_content.decode('utf-8'), height=600, scrolling=True)
