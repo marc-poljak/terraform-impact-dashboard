@@ -187,6 +187,143 @@ terraform show -json tfplan > terraform-plan.json
 3. **Explore Visualizations**: Interactive charts show resource distributions and patterns
 4. **Use Data Table**: Filter, search, and examine detailed resource information
 
+## 🔗 TFE Connection Feature
+
+The dashboard includes a powerful **Terraform Cloud/Enterprise (TFE) Integration** that allows you to connect directly to your TFE workspace and analyze plans without manual file downloads.
+
+### ✨ Key Benefits
+
+- **🚀 Direct Connection**: Connect to Terraform Cloud or Enterprise instances
+- **⚡ Automated Retrieval**: Fetch plan data directly from workspace runs
+- **🔄 Real-time Analysis**: Analyze plans immediately without file downloads
+- **🔒 Secure Processing**: All credentials handled securely in memory only
+- **📊 Always Current**: Analyze the latest run data automatically
+
+### 🛠️ Setup Requirements
+
+To use the TFE connection feature, you'll need:
+
+1. **TFE Server URL**: Your Terraform Cloud/Enterprise instance
+   - Terraform Cloud: `app.terraform.io`
+   - Enterprise: Your custom TFE server URL
+
+2. **API Token**: Personal or team token with workspace read permissions
+   - Generate in TFE: User Settings → Tokens → Create API Token
+
+3. **Organization Name**: Your TFE organization identifier
+
+4. **Workspace ID**: Target workspace identifier (format: `ws-XXXXXXXXX`)
+
+5. **Run ID**: Specific run to analyze (format: `run-XXXXXXXXX`)
+
+### 📋 Configuration File Format
+
+Create a YAML configuration file with your TFE connection details:
+
+```yaml
+# Basic TFE Configuration
+tfe_server: app.terraform.io          # or your TFE server URL
+organization: my-organization         # Your TFE organization
+token: your-api-token-here           # Your TFE API token
+workspace_id: ws-ABC123456           # Target workspace ID
+run_id: run-XYZ789012               # Specific run to analyze
+
+# Optional settings
+verify_ssl: true                     # SSL certificate verification
+timeout: 30                         # Request timeout in seconds
+retry_attempts: 3                   # Number of retry attempts
+```
+
+### 🚀 How to Use TFE Integration
+
+1. **Access TFE Tab**: In the dashboard, click on the "TFE Connection" tab
+
+2. **Upload Configuration**: Upload your YAML configuration file using the file uploader
+
+3. **Automatic Processing**: The dashboard will:
+   - ✅ Validate connection to TFE server
+   - ✅ Authenticate with your API token
+   - ✅ Verify workspace and run access
+   - ✅ Retrieve and process plan data
+
+4. **Analyze Results**: Once connected, the plan data flows through the same analysis pipeline as uploaded files
+
+### 🔍 Finding Your IDs
+
+#### Workspace ID
+**From TFE URL:**
+```
+https://app.terraform.io/app/my-org/workspaces/my-workspace
+```
+The workspace ID can be found in the workspace settings or via API.
+
+**From API:**
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+     https://app.terraform.io/api/v2/organizations/YOUR_ORG/workspaces
+```
+
+#### Run ID
+**From Run URL:**
+```
+https://app.terraform.io/app/my-org/workspaces/my-workspace/runs/run-XXXXXXXXX
+```
+The run ID is visible in the URL when viewing a specific run.
+
+**From API:**
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+     https://app.terraform.io/api/v2/workspaces/WORKSPACE_ID/runs
+```
+
+### 🔒 Security & Privacy
+
+The TFE integration is designed with security as a top priority:
+
+- **🔐 Memory-Only Storage**: Credentials are never written to disk
+- **🧹 Automatic Cleanup**: All data cleared when you close the browser
+- **🎭 Masked Display**: Sensitive values are hidden in the UI
+- **🔒 Encrypted Communication**: All API calls use HTTPS/TLS
+- **📝 No Persistence**: No data stored on servers or in logs
+- **🔄 Session Isolation**: Each session is completely independent
+
+### 🎯 Configuration Templates
+
+The dashboard provides several pre-configured templates:
+
+- **🌐 Terraform Cloud**: Standard setup for app.terraform.io
+- **🏢 Terraform Enterprise**: Custom server configuration
+- **🔧 Development**: Testing and development environments
+- **🔒 Production**: High-security production setups
+
+### 🔧 Troubleshooting
+
+#### Authentication Issues
+- **Invalid Token**: Generate a new token in TFE user settings
+- **Expired Token**: Check token expiration and renew if needed
+- **Insufficient Permissions**: Ensure token has workspace read access
+- **Wrong Organization**: Verify organization name matches exactly
+
+#### Connection Issues
+- **Connection Timeout**: Check internet connectivity and TFE server status
+- **SSL Certificate Errors**: Verify TFE server certificate
+- **Firewall Blocking**: Ensure outbound HTTPS (port 443) is allowed
+
+#### Data Issues
+- **Workspace Not Found**: Verify workspace ID format (`ws-XXXXXXXXX`)
+- **Run Not Found**: Check run ID format (`run-XXXXXXXXX`)
+- **No JSON Output**: Ensure run completed successfully
+- **Empty Plan**: Run may have no changes (normal for up-to-date infrastructure)
+
+### 💡 Best Practices
+
+- **🔑 Use Dedicated Tokens**: Create tokens specifically for dashboard integration
+- **🔄 Rotate Regularly**: Change tokens periodically for security
+- **📝 Limit Permissions**: Use minimum required permissions
+- **🚫 Never Share**: Don't commit configuration files with real tokens
+- **💾 Secure Storage**: Store config files securely, not in version control
+- **🧪 Test First**: Start with a small, recent run to test your setup
+
 ### 3. Advanced Features
 
 #### 🎯 Smart Defaults
