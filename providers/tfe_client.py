@@ -267,23 +267,27 @@ class TFEClient:
         return session
     
     def _get_plan_info_from_run_with_retry(self, run_id: str) -> Tuple[Optional[Dict], Optional[str]]:
-        """Get plan info directly from run (like the working script approach)."""
+        """Get plan info directly from run (exactly like the working standalone script)."""
         config = self.credential_manager.get_config()
         if not config:
             return None, "No configuration available"
         
         server = config.tfe_server
-        if not server.startswith(('http://', 'https://')):
-            server = f"https://{server}"
         
-        # Use the same endpoint as the working script: /runs/{run_id}/plan
-        url = f"{server}/api/v2/runs/{run_id}/plan"
+        # Use the exact same approach as the working standalone script
+        url = f"https://{server}/api/v2/runs/{run_id}/plan"
         headers = {
-            'Authorization': f'Bearer {config.token}',
-            'Content-Type': 'application/vnd.api+json'
+            "Authorization": f"Bearer {config.token}",
+            "Content-Type": "application/vnd.api+json"
         }
         
-        response = self._session.get(url, headers=headers, timeout=config.timeout)
+        # Disable SSL warnings like the working script
+        from urllib3.exceptions import InsecureRequestWarning
+        import requests
+        requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+        
+        # Use direct requests.get() exactly like the working script
+        response = requests.get(url, headers=headers, verify=False, timeout=30)
         
         if response.status_code == 200:
             return response.json(), None
@@ -382,9 +386,8 @@ class TFEClient:
                 config = self.credential_manager.get_config()
                 if config:
                     server = config.tfe_server
-                    if not server.startswith(('http://', 'https://')):
-                        server = f"https://{server}"
-                    return f"{server}{json_link}"
+                    # Use server as-is like the working script
+                    return f"https://{server}{json_link}"
             
             return None
         except (KeyError, TypeError):
@@ -399,16 +402,22 @@ class TFEClient:
             return None
     
     def _download_json_output_with_retry(self, json_url: str) -> Tuple[Optional[Dict], Optional[str]]:
-        """Download and parse JSON output from URL with error handling."""
+        """Download and parse JSON output from URL (exactly like the working standalone script)."""
         config = self.credential_manager.get_config()
         if not config:
             return None, "No configuration available"
         
         headers = {
-            'Authorization': f'Bearer {config.token}'
+            "Authorization": f"Bearer {config.token}"
         }
         
-        response = self._session.get(json_url, headers=headers, timeout=config.timeout)
+        # Disable SSL warnings like the working script
+        from urllib3.exceptions import InsecureRequestWarning
+        import requests
+        requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+        
+        # Use direct requests.get() exactly like the working script
+        response = requests.get(json_url, headers=headers, verify=False, timeout=60)
         
         if response.status_code == 200:
             try:

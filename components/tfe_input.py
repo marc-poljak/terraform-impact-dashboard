@@ -12,6 +12,12 @@ from typing import Optional, Dict, Any, Tuple, List
 from ui.error_handler import ErrorHandler
 from utils.credential_manager import CredentialManager
 from providers.tfe_client import TFEClient
+# Import the working standalone client as primary TFE integration
+try:
+    from providers.standalone_tfe_client import process_tfe_yaml_upload
+    STANDALONE_CLIENT_AVAILABLE = True
+except ImportError:
+    STANDALONE_CLIENT_AVAILABLE = False
 from components.base_component import BaseComponent
 from utils.secure_plan_manager import SecurePlanManager
 
@@ -172,6 +178,46 @@ class TFEInputComponent(BaseComponent):
         try:
             # Read and parse YAML content
             yaml_content = uploaded_file.read().decode('utf-8')
+            
+            # Use standalone TFE client (primary implementation)
+            if STANDALONE_CLIENT_AVAILABLE:
+                st.info("🔄 Connecting to Terraform Cloud/Enterprise...")
+                plan_data, error = process_tfe_yaml_upload(yaml_content)
+                
+                if error:
+                    st.error(f"❌ TFE Integration Error: {error}")
+                    return None
+                else:
+                    st.success("✅ Plan data retrieved successfully from TFE!")
+                    
+                    # Show status warnings if present
+                    if plan_data and '_tfe_status' in plan_data:
+                        status_info = plan_data['_tfe_status']
+                        
+                        if status_info.get('run_status_warning'):
+                            if status_info['run_status_warning'].startswith('❌'):
+                                st.error(f"Run Status: {status_info['run_status_warning']}")
+                            elif status_info['run_status_warning'].startswith('⚠️'):
+                                st.warning(f"Run Status: {status_info['run_status_warning']}")
+                            else:
+                                st.info(f"Run Status: {status_info['run_status_warning']}")
+                        
+                        if status_info.get('plan_status_warning'):
+                            if status_info['plan_status_warning'].startswith('❌'):
+                                st.error(f"Plan Status: {status_info['plan_status_warning']}")
+                            elif status_info['plan_status_warning'].startswith('⚠️'):
+                                st.warning(f"Plan Status: {status_info['plan_status_warning']}")
+                            else:
+                                st.info(f"Plan Status: {status_info['plan_status_warning']}")
+                    
+                    # Show plan summary
+                    if plan_data and 'resource_changes' in plan_data:
+                        changes = plan_data['resource_changes']
+                        st.info(f"📊 Resource changes: {len(changes)} total")
+                    
+                    return plan_data
+            
+            # Fallback to original method if standalone client not available
             is_valid, config, errors = self.credential_manager.validate_yaml_content(yaml_content)
             
             if not is_valid:

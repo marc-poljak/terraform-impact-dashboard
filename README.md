@@ -198,6 +198,8 @@ The dashboard includes a powerful **Terraform Cloud/Enterprise (TFE) Integration
 - **🔄 Real-time Analysis**: Analyze plans immediately without file downloads
 - **🔒 Secure Processing**: All credentials handled securely in memory only
 - **📊 Always Current**: Analyze the latest run data automatically
+- **⚠️ Status Detection**: Automatically detects failed, canceled, or running plans
+- **🔧 SSL Flexibility**: Configurable SSL verification for enterprise environments
 
 ### 🛠️ Setup Requirements
 
@@ -243,10 +245,37 @@ retry_attempts: 3                   # Number of retry attempts
 3. **Automatic Processing**: The dashboard will:
    - ✅ Validate connection to TFE server
    - ✅ Authenticate with your API token
-   - ✅ Verify workspace and run access
+   - ✅ Check run and plan status for errors
    - ✅ Retrieve and process plan data
+   - ⚠️ Display warnings for failed or problematic runs
 
-4. **Analyze Results**: Once connected, the plan data flows through the same analysis pipeline as uploaded files
+4. **Status Feedback**: The dashboard provides clear feedback about:
+   - **Run Status**: Whether the run completed, failed, or was canceled
+   - **Plan Status**: Whether the plan succeeded, failed, or is still running
+   - **Change Summary**: Number of resources being added, modified, or destroyed
+
+5. **Analyze Results**: Once connected, the plan data flows through the same analysis pipeline as uploaded files
+
+### 📊 Plan Status Detection
+
+The TFE integration automatically detects and reports the status of your plans and runs:
+
+#### Run Status Indicators
+- **✅ Applied**: Run completed successfully and changes were applied
+- **✅ Planned**: Plan-only run completed successfully  
+- **⚠️ Errored**: Run failed with errors during planning or applying
+- **⚠️ Canceled**: Run was manually canceled before completion
+- **ℹ️ Planning**: Run is currently in the planning phase
+- **ℹ️ Applying**: Run is currently applying changes
+
+#### Plan Status Indicators  
+- **✅ Finished with Changes**: Plan completed successfully with resources to modify
+- **ℹ️ Finished with No Changes**: Plan completed but no infrastructure changes needed
+- **❌ Errored**: Plan failed during execution due to configuration or provider issues
+- **⚠️ Canceled**: Plan was canceled before completion
+- **ℹ️ Running**: Plan is still executing
+
+> **💡 Tip**: You can analyze plans even if they failed - the dashboard will show what changes were planned before the failure occurred.
 
 ### 🔍 Finding Your IDs
 
@@ -312,12 +341,24 @@ The dashboard provides several pre-configured templates:
 #### Data Issues
 - **Workspace Not Found**: Verify workspace ID format (`ws-XXXXXXXXX`)
 - **Run Not Found**: Check run ID format (`run-XXXXXXXXX`)
-- **No JSON Output**: Ensure run completed successfully
+- **No JSON Output**: Ensure run completed successfully and generated structured output
 - **Empty Plan**: Run may have no changes (normal for up-to-date infrastructure)
+- **Failed Plans**: The dashboard can analyze failed plans but will show status warnings
+- **Running Plans**: Wait for plan to complete before attempting retrieval
+
+#### Plan Status Issues
+- **❌ Plan Failed**: Plan encountered errors during execution - check TFE logs
+- **⚠️ Plan Canceled**: Plan was manually canceled - may have partial data
+- **ℹ️ Plan Running**: Plan is still executing - wait for completion
+- **✅ Plan Succeeded**: Plan completed successfully with changes to apply
 
 ### 💡 Best Practices
 
 - **🔑 Use Dedicated Tokens**: Create tokens specifically for dashboard integration
+- **🔒 Enable SSL Verification**: Keep `verify_ssl: true` for production environments
+- **⏱️ Check Plan Status**: Review status warnings before analyzing failed plans
+- **🔄 Use Recent Runs**: Newer runs are more likely to have compatible JSON output
+- **📋 Monitor Run Completion**: Ensure runs finish before attempting analysis
 - **🔄 Rotate Regularly**: Change tokens periodically for security
 - **📝 Limit Permissions**: Use minimum required permissions
 - **🚫 Never Share**: Don't commit configuration files with real tokens
