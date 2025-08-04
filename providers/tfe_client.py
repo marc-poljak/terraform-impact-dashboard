@@ -124,27 +124,17 @@ class TFEClient:
             return None, run_error
         
         def _get_plan_operation():
-            # Step 1: Get run details to find the plan
-            run_data, error = self._get_run_details_with_retry(run_id)
+            # Step 1: Get plan info directly from the run (like the working script)
+            plan_info, error = self._get_plan_info_from_run_with_retry(run_id)
             if error:
                 raise Exception(error)
             
-            # Step 2: Extract plan ID from run data
-            plan_id = self._extract_plan_id(run_data)
-            if not plan_id:
-                raise Exception("No plan found in run data")
-            
-            # Step 3: Get plan details to find JSON output link
-            plan_data, error = self._get_plan_details_with_retry(plan_id)
-            if error:
-                raise Exception(error)
-            
-            # Step 4: Extract and download JSON output
-            json_output_url = self._extract_json_output_url(plan_data)
+            # Step 2: Extract JSON output URL from plan links
+            json_output_url = self._extract_json_output_url_from_plan_info(plan_info)
             if not json_output_url:
                 raise Exception("No structured JSON output available for this plan")
             
-            # Step 5: Download the JSON output
+            # Step 3: Download the JSON output
             json_data, error = self._download_json_output_with_retry(json_output_url)
             if error:
                 raise Exception(error)
@@ -276,6 +266,37 @@ class TFEClient:
         
         return session
     
+    def _get_plan_info_from_run_with_retry(self, run_id: str) -> Tuple[Optional[Dict], Optional[str]]:
+        """Get plan info directly from run (like the working script approach)."""
+        config = self.credential_manager.get_config()
+        if not config:
+            return None, "No configuration available"
+        
+        server = config.tfe_server
+        if not server.startswith(('http://', 'https://')):
+            server = f"https://{server}"
+        
+        # Use the same endpoint as the working script: /runs/{run_id}/plan
+        url = f"{server}/api/v2/runs/{run_id}/plan"
+        headers = {
+            'Authorization': f'Bearer {config.token}',
+            'Content-Type': 'application/vnd.api+json'
+        }
+        
+        response = self._session.get(url, headers=headers, timeout=config.timeout)
+        
+        if response.status_code == 200:
+            return response.json(), None
+        elif response.status_code == 404:
+            raise requests.exceptions.HTTPError(f"Plan for run {run_id} not found", response=response)
+        elif response.status_code == 403:
+            raise requests.exceptions.HTTPError("Access denied. Check permissions for this run.", response=response)
+        elif response.status_code == 429:
+            raise requests.exceptions.HTTPError("Rate limit exceeded", response=response)
+        else:
+            response.raise_for_status()
+            return response.json(), None
+
     def _get_run_details_with_retry(self, run_id: str) -> Tuple[Optional[Dict], Optional[str]]:
         """Get run details from TFE API with error handling."""
         config = self.credential_manager.get_config()
@@ -349,6 +370,26 @@ class TFEClient:
             response.raise_for_status()
             return response.json(), None
     
+    def _extract_json_output_url_from_plan_info(self, plan_info: Dict) -> Optional[str]:
+        """Extract JSON output URL from plan info (like the working script approach)."""
+        try:
+            # Extract from links section like the working script
+            links = plan_info.get('data', {}).get('links', {})
+            json_link = links.get('json-output-redacted')
+            
+            if json_link:
+                # The working script shows this is a relative path, so we need to construct the full URL
+                config = self.credential_manager.get_config()
+                if config:
+                    server = config.tfe_server
+                    if not server.startswith(('http://', 'https://')):
+                        server = f"https://{server}"
+                    return f"{server}{json_link}"
+            
+            return None
+        except (KeyError, TypeError):
+            return None
+
     def _extract_json_output_url(self, plan_data: Dict) -> Optional[str]:
         """Extract JSON output URL from plan data."""
         try:
