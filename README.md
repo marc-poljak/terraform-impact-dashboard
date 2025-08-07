@@ -129,11 +129,9 @@ terraform-impact-dashboard/
 │   └── fixtures/                   # Test fixtures and sample data
 ├── assets/
 │   └── styles.css                 # Custom CSS styling
-└── .kiro/                          # Kiro AI configuration
-    └── specs/                      # Project specifications
 ```
 
-## � Usage CGuide
+## 📊 Usage Guide
 
 ### 1️⃣ Generate Terraform Plan JSON
 
@@ -175,7 +173,7 @@ verify_ssl: true  # optional
 
 **Usage:** Upload YAML config in the TFE tab → Automatic authentication and plan retrieval → Status feedback and analysis
 
-### � Stactus Detection
+### 📊 Status Detection
 
 Automatically detects run/plan status: ✅ **Success** (Applied/Planned) • ⚠️ **Issues** (Errored/Canceled) • ℹ️ **In Progress** (Planning/Applying/Running)
 
@@ -197,7 +195,7 @@ Memory-only credential storage • Automatic cleanup • Encrypted communication
 
 > **Need Help?** Use `convert_config.py` to migrate from JSON format, or check the dashboard's built-in configuration templates.
 
-## � Priofessional Reporting
+## 📄 Professional Reporting
 
 The Enhanced PDF Generator creates professional reports using reportlab (pure Python, no system dependencies):
 
@@ -248,7 +246,7 @@ python -m pytest tests/unit/test_components_basic.py -v
 
 See `tests/README.md` for detailed testing documentation.
 
-## � Troubleslhooting
+## 🔧 Troubleshooting
 
 ### ⚠️ Common Issues
 
