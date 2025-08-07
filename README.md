@@ -12,6 +12,8 @@ A comprehensive Streamlit-based dashboard for analyzing Terraform plan JSON file
 - **🔗 TFE Integration**: Direct connection to Terraform Cloud/Enterprise workspaces
 - **🎯 User Experience**: Interactive onboarding, feature discovery, and comprehensive help system
 
+![Dashboard Beispiel](assets/dashboard_example.png)
+
 ## ⚠️ Disclaimer
 
 **USE AT YOUR OWN RISK**. This tool is provided "as is", without warranty of any kind, express or implied. Neither the authors nor contributors shall be liable for any damages or consequences arising from the use of this tool. Always:
@@ -30,12 +32,14 @@ A comprehensive Streamlit-based dashboard for analyzing Terraform plan JSON file
 ### 🚀 Installation
 
 1. **Clone the repository:**
+
 ```bash
 git clone <repository-url>
 cd terraform-impact-dashboard
 ```
 
 2. **Create and activate virtual environment:**
+
 ```bash
 # Create virtual environment
 python -m venv .venv
@@ -48,11 +52,13 @@ source .venv/bin/activate
 ```
 
 3. **Install dependencies:**
+
 ```bash
 pip install -r requirements.txt
 ```
 
 4. **Run the dashboard:**
+
 ```bash
 streamlit run app.py
 ```
@@ -162,13 +168,14 @@ Connect directly to **Terraform Cloud/Enterprise** to analyze plans without manu
 **Requirements:** TFE server URL, API token, organization name, workspace ID (`ws-*`), and run ID (`run-*`)
 
 **YAML Configuration:**
+
 ```yaml
 tfe_server: app.terraform.io
 organization: my-org
 token: your-api-token
 workspace_id: ws-ABC123456
 run_id: run-XYZ789012
-verify_ssl: true  # optional
+verify_ssl: true # optional
 ```
 
 **Usage:** Upload YAML config in the TFE tab → Automatic authentication and plan retrieval → Status feedback and analysis
@@ -200,6 +207,7 @@ Memory-only credential storage • Automatic cleanup • Encrypted communication
 The Enhanced PDF Generator creates professional reports using reportlab (pure Python, no system dependencies):
 
 ### Features:
+
 - 🎨 **Multiple Templates**: Default, Executive, Technical, and Security-focused
 - 📊 **Professional Styling**: Clean layouts with proper typography
 - 📈 **Rich Content**: Executive summaries, risk analysis, detailed changes, and recommendations
@@ -207,6 +215,7 @@ The Enhanced PDF Generator creates professional reports using reportlab (pure Py
 - 📏 **Smart Sizing**: Automatic file size optimization
 
 ### Usage:
+
 1. Select your preferred template
 2. Choose report sections to include
 3. Click "Generate Report" to create both HTML and PDF
@@ -215,12 +224,14 @@ The Enhanced PDF Generator creates professional reports using reportlab (pure Py
 ## 🌟 Advanced Features
 
 ### ☁️ Multi-Cloud Support
+
 - **Provider Detection**: Automatic identification of AWS, Azure, GCP, and other providers
 - **Cross-Cloud Analysis**: Unified risk assessment across multiple cloud platforms
 - **Provider-Specific Insights**: Tailored recommendations for each cloud provider
 - **Resource Distribution**: Visual breakdown of resources across different clouds
 
 ### 🏢 Enterprise Features
+
 - **Workflow-Specific Tours**: Guided tutorials for security reviews, production deployments
 - **Enhanced Professional Reporting**: Template-based PDF/HTML generation with executive summaries, technical analysis, and security assessments
 - **Accessibility Compliance**: Full WCAG 2.1 AA compliance with keyboard navigation
@@ -251,11 +262,13 @@ See `tests/README.md` for detailed testing documentation.
 ### ⚠️ Common Issues
 
 **Streamlit command not found:**
+
 ```bash
 python -m streamlit run app.py
 ```
 
 **Import errors:**
+
 ```bash
 # Ensure virtual environment is activated and reinstall dependencies
 source .venv/bin/activate  # macOS/Linux
@@ -264,11 +277,13 @@ pip install -r requirements.txt
 ```
 
 **Large file upload issues:**
+
 ```bash
 streamlit run app.py --server.maxUploadSize=200
 ```
 
 **PDF generation issues:**
+
 ```bash
 # Test enhanced PDF generator
 python -c "from components.enhanced_pdf_generator import EnhancedPDFGenerator; print('Enhanced PDF generator working!')"
@@ -278,6 +293,7 @@ pip install reportlab
 ```
 
 **Performance issues with large plans:**
+
 - Enable debug mode to see processing details
 - Use filters to focus analysis
 - Large plans (>50MB) may take 30-60 seconds to process
@@ -285,6 +301,7 @@ pip install reportlab
 ## 🤝 Contributing
 
 To extend the dashboard:
+
 - Add new chart types in `visualizers/charts.py`
 - Enhance risk logic in `utils/risk_assessment.py` or `utils/enhanced_risk_assessment.py`
 - Add new parsers for different Terraform versions
@@ -294,6 +311,7 @@ To extend the dashboard:
 ## 🆘 Support
 
 For issues or questions:
+
 - **In-App Help**: Use the guided tour and contextual help system
 - **Accessibility**: Full keyboard navigation and screen reader support
 - **Feature Discovery**: Enable discovery mode for interactive feature hints
